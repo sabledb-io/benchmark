@@ -121,6 +121,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = Options::parse();
     args.finalise();
 
+    if args.randomize {
+        bench_utils::set_randomize_keys(true);
+    }
+
     // prepare log formatter
     let debug_level = args.log_level.unwrap_or(tracing::Level::INFO);
     tracing_subscriber::fmt::fmt()
@@ -146,7 +150,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::debug!("Connections: {}", args.connections);
     tracing::debug!("Conn per thread: {}", args.tasks_per_thread());
     tracing::debug!("Key space: {}", args.key_range);
-    tracing::debug!("Key size: {}", args.key_size);
+    tracing::debug!("Key size: {}", args.get_key_size());
     tracing::debug!("Data size: {}", args.data_size);
 
     stats::finalise_progress_setup(args.num_requests as u64);
@@ -200,6 +204,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("    GET clients count: {}", stats::setget_get_tasks());
         println!("    SET clients count: {}", stats::setget_set_tasks());
     }
+
+    println!("    Key size  : {} Bytes", args.get_key_size());
+    println!("    Value size: {} Bytes", args.data_size);
     stats::print_latency();
     Ok(())
 }

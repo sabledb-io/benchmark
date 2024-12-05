@@ -9,7 +9,7 @@ pub async fn run_set(
     requests_to_send: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut requests_sent = 0;
-    let key_size = opts.key_size;
+    let key_size = opts.get_key_size();
     let key_range = opts.key_range;
     let payload = bench_utils::generate_payload(opts.data_size);
     let mut client = ValkeyClient::default();
@@ -45,7 +45,7 @@ pub async fn run_get(
     requests_to_send: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut requests_sent = 0;
-    let key_size = opts.key_size;
+    let key_size = opts.get_key_size();
     let key_range = opts.key_range;
     let mut client = ValkeyClient::default();
     while requests_sent < requests_to_send {
@@ -117,7 +117,7 @@ pub async fn run_incr(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let requests_to_send = opts.client_requests();
     let mut requests_sent = 0;
-    let key_size = opts.key_size;
+    let key_size = opts.get_key_size();
     let key_range = opts.key_range;
     let mut client = ValkeyClient::default();
     while requests_sent < requests_to_send {
@@ -157,7 +157,7 @@ pub async fn run_push(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let requests_to_send = opts.client_requests();
     let mut requests_sent = 0;
-    let key_size = opts.key_size;
+    let key_size = opts.get_key_size();
     let key_range = opts.key_range;
     let payload = bench_utils::generate_payload(opts.data_size);
     let mut client = ValkeyClient::default();
@@ -194,7 +194,7 @@ pub async fn run_pop(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let requests_to_send = opts.client_requests();
     let mut requests_sent = 0;
-    let key_size = opts.key_size;
+    let key_size = opts.get_key_size();
     let key_range = opts.key_range;
     let mut client = ValkeyClient::default();
     while requests_sent < requests_to_send {
@@ -234,7 +234,7 @@ pub async fn run_hset(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let requests_to_send = opts.client_requests();
     let mut requests_sent = 0;
-    let key_size = opts.key_size;
+    let key_size = opts.get_key_size();
     let key_range = opts.key_range;
     let mut client = ValkeyClient::default();
     let payload = bench_utils::generate_payload(opts.data_size);

@@ -12,7 +12,7 @@ pub struct Options {
     pub connections: usize,
 
     /// Number of threads to use.
-    /// Each thread will run `connections / threads` connections
+    /// Each thread will run "connections / threads" connections
     #[arg(long, default_value = "1")]
     pub threads: usize,
 
@@ -25,18 +25,19 @@ pub struct Options {
     pub port: usize,
 
     /// test suits to run. Possible values are:
-    /// `set`, `get`, `lpush`, `lpop`, `incr`, `rpop`, `rpush`, `ping`, `hset`, `setget`.
-    /// Note when the test is `setget`, you can control the ratio by passing: `--setget-ratio`
-    #[arg(short, long, default_value = "set")]
+    /// "set", "get", "lpush", "lpop", "incr", "rpop", "rpush", "ping", "hset", "setget".
+    /// Note that when the test is "setget", you can control the ratio by passing: "--setget-ratio"
+    #[arg(short, long, default_value = "set", verbatim_doc_comment)]
     pub test: String,
 
     /// Payload data size
     #[arg(short, long, default_value = "256")]
     pub data_size: usize,
 
-    /// Key size
-    #[arg(short, long, default_value = "10")]
-    pub key_size: usize,
+    /// Key size, in bytes. If not provided, the key size is calculated based on the requested key range.
+    /// For example, if no "key_size" is provided and the "key_range" is 100,000, the key size will be 6
+    #[arg(short, long, verbatim_doc_comment)]
+    pub key_size: Option<usize>,
 
     /// Number of unique keys in the benchmark
     #[arg(short = 'r', long, default_value = "1000000")]
@@ -50,11 +51,11 @@ pub struct Options {
     #[arg(short, long)]
     pub log_level: Option<tracing::Level>,
 
-    /// use TLS
+    /// Use TLS handshake with SableDB / Valkey
     #[arg(long, default_value = "false")]
     pub tls: bool,
 
-    /// use SSL (this is similar to passing --tls)
+    /// Same as "--tls"
     #[arg(long, default_value = "false")]
     pub ssl: bool,
 
@@ -62,10 +63,15 @@ pub struct Options {
     #[arg(long, default_value = "1")]
     pub pipeline: usize,
 
-    /// The ratio between set:get when test is "setget"
-    /// For example, passing "1:4" means: execute 1 set for every 4 get calls
-    #[arg(long, default_value = "1:4")]
+    /// The ratio between SET:GET when test is "SETGET".
+    /// For example, passing "1:4" means: execute 1 SET for every 4 GET calls
+    #[arg(long, default_value = "1:4", verbatim_doc_comment)]
     pub setget_ratio: Option<String>,
+
+    /// Keys are generated using sequential manner, i.e. from "0" until "key-range" in an incremental step of "1".
+    /// Passing "-z" or "--randomize" will generate random keys by generating random number from "0" -> "key-range".
+    #[arg(short = 'z', long, default_value = "false", verbatim_doc_comment)]
+    pub randomize: bool,
 }
 
 impl Options {
@@ -117,6 +123,20 @@ impl Options {
             Some((setcalls, getcalls))
         } else {
             Some((1.0, 4.0))
+        }
+    }
+
+    /// Return the key size. If `key_size` is provided return its value
+    /// otherwise, calculate it from the size required to hold the maximum key value
+    pub fn get_key_size(&self) -> usize {
+        if let Some(len) = self.key_size {
+            len
+        } else {
+            self.key_range
+                .ilog10()
+                .saturating_add(1)
+                .try_into()
+                .unwrap_or(usize::MAX)
         }
     }
 }
