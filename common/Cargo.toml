@@ -1,0 +1,13 @@
+[package]
+name = "sbcommonlib"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bytes = "1"
+clap = { version = "4", features = ["derive"] }
+test-case = "3"
+tracing = { version = "0", features = ["log"] }
+rand = "0"
+thiserror = "1"
+wildmatch = "2"

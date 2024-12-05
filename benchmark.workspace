@@ -3,7 +3,7 @@
 	"name":	"",
 	"configs":	[{
 			"name":	"Debug",
-			"targets":	[["build", ""], ["clean", ""]],
+			"targets":	[["build", "cargo build --color always"], ["clean", ""]],
 			"file_extensions":	"*.cpp;*.c;*.txt;*.json;*.hpp;*.cc;*.cxx;*.xml;*.h;*.wxcp;*.py;*.php;*.rb;*.html;*.js;*.ts;*.rs;*.iss;*.md;*.bat;*.sh;*.cmake",
 			"excludeFilesPattern":	"*.o;*.pyc;*.obj;*.workspace;*.o.d;*.exe;*.dll;*.project",
 			"excludePaths":	"",
