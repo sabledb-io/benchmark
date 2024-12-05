@@ -1,4 +1,4 @@
-# `sabldb-benchmark`
+# `sabledb-benchmark`
 
 A modern, drop in replacement to Valkey's benchmark tool.
 
@@ -32,6 +32,19 @@ Options:
 
 ![sabledb-benchmark progress demo](/images/sabledb-benchmark.gif)
 
+# Building from sources
+
+```bash
+git clone https://github.com/sabledb-io/benchmark.git
+cd benchmark
+cargo build --release
+```
+
+Use it:
+
+```bash
+target/release/sabledb-benchmark --help
+```
 
 This project is part of [`SableDB`][1]
 
