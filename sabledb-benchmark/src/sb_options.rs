@@ -60,7 +60,7 @@ pub struct Options {
     pub ssl: bool,
 
     /// Pipeline
-    #[arg(long, default_value = "1")]
+    #[arg(short = 'P', long, default_value = "1")]
     pub pipeline: usize,
 
     /// The ratio between SET:GET when test is "SETGET".
