@@ -139,4 +139,34 @@ impl Options {
                 .unwrap_or(usize::MAX)
         }
     }
+
+    /// Initialise the options from the command line arguments + configuration file (if one exists)
+    pub fn initialise() -> (Self, String) {
+        let mut args: Vec<String> = std::env::args().collect();
+
+        #[cfg(windows)]
+        let home = "USERPROFILE";
+        #[cfg(not(windows))]
+        let home = "HOME";
+        let Ok(homedir) = std::env::var(home) else {
+            let cmdline = args.join(" ");
+            return (Self::parse_from(args), cmdline);
+        };
+
+        let mut filepath = std::path::PathBuf::from(homedir);
+        filepath.push(".sabledb-benchmark");
+        let Ok(content) = std::fs::read_to_string(&filepath) else {
+            let cmdline = args.join(" ");
+            return (Self::parse_from(args), cmdline);
+        };
+
+        // Create the command line args: exe <file args> <cmd line args>
+        let mut config_args: Vec<String> = content.split(' ').map(|s| s.to_string()).collect();
+        let exe = args.remove(0);
+        config_args.extend(args);
+        config_args.insert(0, exe);
+
+        let cmdline = config_args.join(" ");
+        (Self::parse_from(config_args), cmdline)
+    }
 }

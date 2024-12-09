@@ -4,8 +4,6 @@ mod stats;
 mod tests;
 mod valkey_client;
 
-use clap::Parser;
-
 use num_format::{Locale, ToFormattedString};
 use sb_options::Options;
 
@@ -118,7 +116,7 @@ async fn task_main(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut args = Options::parse();
+    let (mut args, cmdline) = Options::initialise();
     args.finalise();
 
     if args.randomize {
@@ -132,6 +130,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_thread_ids(true)
         .with_max_level(debug_level)
         .init();
+
+    println!("Using command line: {}", cmdline);
 
     // panic! should go to the log
     std::panic::set_hook(Box::new(|e| {
