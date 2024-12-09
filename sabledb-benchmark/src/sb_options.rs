@@ -160,6 +160,9 @@ impl Options {
             return (Self::parse_from(args), cmdline);
         };
 
+        // Make sure no extra chars exists in the content
+        let content = content.trim();
+
         // Create the command line args: exe <file args> <cmd line args>
         let mut config_args: Vec<String> = content.split(' ').map(|s| s.to_string()).collect();
         let exe = args.remove(0);
