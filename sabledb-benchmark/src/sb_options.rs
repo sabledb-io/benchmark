@@ -1,4 +1,12 @@
 use clap::Parser;
+use colored::Colorize;
+use ini::Ini;
+use std::collections::HashMap;
+use std::sync::RwLock;
+
+lazy_static::lazy_static! {
+    static ref PRESETS: RwLock<HashMap<String, String>> = RwLock::<HashMap<String, String>>::default();
+}
 
 #[derive(Parser, Debug, Clone)]
 #[clap(disable_help_flag = true)]
@@ -72,6 +80,12 @@ pub struct Options {
     /// Passing "-z" or "--randomize" will generate random keys by generating random number from "0" -> "key-range".
     #[arg(short = 'z', long, default_value = "false", verbatim_doc_comment)]
     pub randomize: bool,
+
+    /// Use preset command line. If set, sabledb-benchmark will search for the preset name
+    /// in the configuration file $HOME/.sabledb-benchmark with that exact name and use the command line
+    /// set there.
+    #[arg(short = 's', long, verbatim_doc_comment)]
+    pub preset: Option<String>,
 }
 
 impl Options {
@@ -144,32 +158,103 @@ impl Options {
     pub fn initialise() -> (Self, String) {
         let mut args: Vec<String> = std::env::args().collect();
 
+        // Check if "--preset" was passed
+        let mut preset_value = None;
+        let mut has_preset = false;
+        let mut iter = args.iter();
+        while let Some(argument) = iter.next() {
+            if argument.eq("--preset") {
+                if let Some(value) = iter.next() {
+                    preset_value = Some(value.clone());
+                    has_preset = true;
+                    break;
+                }
+            }
+        }
+
+        let preset_value = match (has_preset, preset_value) {
+            (true, None) => {
+                eprintln!("{}: --preset is missing a value", "error".red().bold());
+                std::process::exit(1);
+            }
+            (false, _) => {
+                // No preset is requested
+                let cmdline = args.join(" ");
+                return (Self::parse_from(args), cmdline);
+            }
+            (true, Some(preset_value)) => preset_value,
+        };
+
         #[cfg(windows)]
         let home = "USERPROFILE";
         #[cfg(not(windows))]
         let home = "HOME";
         let Ok(homedir) = std::env::var(home) else {
-            let cmdline = args.join(" ");
-            return (Self::parse_from(args), cmdline);
+            eprintln!(
+                "{}: could not locate environment variable {}",
+                "error".red().bold(),
+                home
+            );
+            std::process::exit(1);
         };
 
         let mut filepath = std::path::PathBuf::from(homedir);
         filepath.push(".sabledb-benchmark");
         let Ok(content) = std::fs::read_to_string(&filepath) else {
-            let cmdline = args.join(" ");
-            return (Self::parse_from(args), cmdline);
+            eprintln!(
+                "{}: could not read configuration file '{}'",
+                "error".red().bold(),
+                filepath.display()
+            );
+            std::process::exit(1);
         };
+
+        let Ok(config) = Ini::load_from_str(content.as_str()) else {
+            eprintln!(
+                "{}: failed to parse INI file '{}'",
+                "error".red().bold(),
+                filepath.display()
+            );
+            std::process::exit(1);
+        };
+
+        // Read the sections, each section is the name of the preset
+        for (name, props) in &config {
+            let Some(name) = name else {
+                continue;
+            };
+            if let Some(command) = props.get("command") {
+                PRESETS
+                    .write()
+                    .expect("preset lock error")
+                    .insert(name.to_string(), command.to_string());
+            }
+        }
+
+        // read the value
+        let presets = PRESETS.read().expect("preset lock error");
+        let Some(content) = presets.get(&preset_value) else {
+            eprintln!(
+                "{}: preset name '{}' could not be found in configuration file: '{}'",
+                "error".red().bold(),
+                preset_value.bold(),
+                filepath.display()
+            );
+            std::process::exit(1);
+        };
+
+        // We found the preset
 
         // Make sure no extra chars exists in the content
         let content = content.trim();
 
         // Create the command line args: exe <file args> <cmd line args>
-        let mut config_args: Vec<String> = content.split(' ').map(|s| s.to_string()).collect();
+        let mut preset_args: Vec<String> = content.split(' ').map(|s| s.to_string()).collect();
         let exe = args.remove(0);
-        config_args.extend(args);
-        config_args.insert(0, exe);
+        preset_args.extend(args);
+        preset_args.insert(0, exe);
 
-        let cmdline = config_args.join(" ");
-        (Self::parse_from(config_args), cmdline)
+        let cmdline = preset_args.join(" ");
+        (Self::parse_from(preset_args), cmdline)
     }
 }
