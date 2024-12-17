@@ -1,10 +1,10 @@
-# `sabledb-benchmark`
+# `sb`
 
 A modern, drop in replacement to Valkey's benchmark tool.
 
 
 ```bash
-Usage: sabledb-benchmark [OPTIONS]
+Usage: sb [OPTIONS]
 
 Options:
       --help                         Print this help message and exit
@@ -28,20 +28,20 @@ Options:
                                      For example, passing "1:4" means: execute 1 SET for every 4 GET calls [default: 1:4]
   -z, --randomize                    Keys are generated using sequential manner, i.e. from "0" until "key-range" in an incremental step of "1".
                                      Passing "-z" or "--randomize" will generate random keys by generating random number from "0" -> "key-range".
-  -s, --preset <PRESET>              Use preset command line. If set, sabledb-benchmark will search for the preset name
-                                     in the configuration file $HOME/.sabledb-benchmark with that exact name and use the command line
+  -s, --preset <PRESET>              Use preset command line. If set, sb will search for the preset name
+                                     in the configuration file $HOME/.sb with that exact name and use the command line
                                      set there.
 ```
 
 ## Preset configurations
 
-`sabledb-benchmark` supports "preset" tests. With this feature, a user can store multiple test execution command lines
+`sb` supports "preset" tests. With this feature, a user can store multiple test execution command lines
 inside a configuration file and re-use it later. With this feature you can avoid mistakes of missing a command line
 argument...
 
 An example for using the preset configuration:
 
-* Create the configuration file `$HOME/.sabledb-benchmark`
+* Create the configuration file `$HOME/.sb.ini`
 * Place the below content into the file and save it:
 
 ```
@@ -55,27 +55,27 @@ An example for using the preset configuration:
 --threads 4 -c 512 -d 64 -n 5000000 -r 5000000 -t setget -z
 ```
 
-* You can now use `sabledb-benchmark` using the following commands:
+* You can now use `sb` using the following commands:
 
 to fill the database:
 
 ```bash
-sabledb-benchmark --preset fill-database
+sb --preset fill-database
 ```
 
 Run a readers/writers load using sequential keys:
 
 ```bash
-sabledb-benchmark --preset setget-seq
+sb --preset setget-seq
 ```
 
 Run a readers/writers load using random keys:
 
 ```bash
-sabledb-benchmark --preset setget-random
+sb --preset setget-random
 ```
 
-![sabledb-benchmark progress demo](/images/sabledb-benchmark.gif)
+![sb progress demo](/images/sb.gif)
 
 # Building from sources
 
@@ -88,7 +88,7 @@ cargo build --release
 Use it:
 
 ```bash
-target/release/sabledb-benchmark --help
+target/release/sb --help
 ```
 
 This project is part of [`SableDB`][1]

@@ -81,8 +81,8 @@ pub struct Options {
     #[arg(short = 'z', long, default_value = "false", verbatim_doc_comment)]
     pub randomize: bool,
 
-    /// Use preset command line. If set, sabledb-benchmark will search for the preset name
-    /// in the configuration file $HOME/.sabledb-benchmark with that exact name and use the command line
+    /// Use preset command line. If set, "sb" will search for the preset name
+    /// in the configuration file "$HOME/.sb.ini" with that exact name and use the command line
     /// set there.
     #[arg(short = 's', long, verbatim_doc_comment)]
     pub preset: Option<String>,
@@ -199,7 +199,7 @@ impl Options {
         };
 
         let mut filepath = std::path::PathBuf::from(homedir);
-        filepath.push(".sabledb-benchmark");
+        filepath.push(".sb.ini");
         let Ok(content) = std::fs::read_to_string(&filepath) else {
             eprintln!(
                 "{}: could not read configuration file '{}'",
