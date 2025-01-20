@@ -1,0 +1,34 @@
+site_name: sb
+repo_url: https://github.com/sabledb-io/benchmark
+repo_name: GitHub
+edit_uri: edit/main/docs/site
+
+nav:
+    - Usage: usage.md
+
+theme:
+  name: material
+  features:
+    - navigation.expand
+    - navigation.sections
+    - content.code.copy
+  palette:
+    scheme: slate
+    primary: indigo
+  highlightjs: true
+  font:
+    text: Roboto
+    code: Roboto Mono
+
+markdown_extensions:
+  - pymdownx.keys
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+
+extra:
+  generator: false

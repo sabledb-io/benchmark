@@ -1,6 +1,6 @@
 {
 	"workspace_type":	"File System Workspace",
-	"name":	"",
+	"name":	"benchmark",
 	"configs":	[{
 			"name":	"Debug",
 			"targets":	[["build", "cargo build --color always"], ["clean", ""]],
