@@ -6,6 +6,16 @@ use std::sync::RwLock;
 
 lazy_static::lazy_static! {
     static ref PRESETS: RwLock<HashMap<String, String>> = RwLock::<HashMap<String, String>>::default();
+    static ref VECDB_INDEX_NAME: RwLock<String> = RwLock::<String>::new("my_index".into());
+    static ref VECDB_INDEX_PREFIX: RwLock<String> = RwLock::<String>::new("my_prefix".into());
+}
+
+pub fn vecdb_index_name() -> String {
+    VECDB_INDEX_NAME.read().expect("mutex error").clone()
+}
+
+pub fn vecdb_index_prefix() -> String {
+    VECDB_INDEX_PREFIX.read().expect("mutex error").clone()
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -33,7 +43,7 @@ pub struct Options {
     pub port: usize,
 
     /// test suits to run. Possible values are:
-    /// "set", "get", "lpush", "lpop", "incr", "rpop", "rpush", "ping", "hset", "setget".
+    /// "set", "get", "lpush", "lpop", "incr", "rpop", "rpush", "ping", "hset", "setget", "vecdb_ingest".
     /// Note that when the test is "setget", you can control the ratio by passing: "--setget-ratio"
     #[arg(short, long, default_value = "set", verbatim_doc_comment)]
     pub test: String,
@@ -46,6 +56,14 @@ pub struct Options {
     /// For example, if no "key_size" is provided and the "key_range" is 100,000, the key size will be 6
     #[arg(short, long, verbatim_doc_comment)]
     pub key_size: Option<usize>,
+
+    /// When running vector DB ingestion ("-t vecdb_ingest") test, pass here the vector dimension size.
+    #[arg(long, default_value = "128", verbatim_doc_comment)]
+    pub dim: usize,
+
+    /// When testing "vecdb_ingest", use this to pass the index name + the prefix as a comma separated strings
+    #[arg(long, default_value = "my_index,my_prefix", verbatim_doc_comment)]
+    pub vecdb_index: String,
 
     /// Number of unique keys in the benchmark
     #[arg(short = 'r', long, default_value = "1000000")]
@@ -102,6 +120,21 @@ impl Options {
         if self.num_requests == 0 {
             self.num_requests = 1000;
         }
+
+        // parse the vecdb_index
+        let parts: Vec<&str> = self.vecdb_index.split(",").collect();
+        let mut iter = parts.iter();
+        let (Some(index_name), Some(index_prefix)) = (iter.next(), iter.next()) else {
+            eprintln!(
+                "{}: {}: expected comma separated format of: '<index-name>,<index-prefix>'",
+                "error".red().bold(),
+                "--vecdb-index".bold(),
+            );
+            std::process::exit(1);
+        };
+
+        *VECDB_INDEX_NAME.write().expect("mutex error") = index_name.to_string();
+        *VECDB_INDEX_PREFIX.write().expect("mutex error") = index_prefix.to_string();
     }
 
     /// Return the number of connections ("tasks") per thread to start
@@ -255,6 +288,7 @@ impl Options {
         preset_args.insert(0, exe);
 
         let cmdline = preset_args.join(" ");
-        (Self::parse_from(preset_args), cmdline)
+        let options: Options = Self::parse_from(preset_args);
+        (options, cmdline)
     }
 }
