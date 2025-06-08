@@ -1,5 +1,8 @@
 use bytes::BytesMut;
-use rand::{distr::Alphanumeric, Rng};
+use rand::{
+    distr::{Alphanumeric, Uniform},
+    Rng,
+};
 use sbcommonlib::BytesMutUtils;
 use std::sync::atomic::Ordering;
 use std::sync::atomic::{AtomicBool, AtomicU64};
@@ -39,4 +42,38 @@ pub fn generate_key(len: usize, key_range: usize) -> BytesMut {
 
 pub fn set_randomize_keys(random: bool) {
     RANDOMIZE_KEYS.store(random, Ordering::Relaxed);
+}
+
+/// Generate random vector of `f32`.
+pub fn generate_vector(dim: usize) -> String {
+    let range = Uniform::new(0f32, f32::MAX).expect("Failed to create number Uniform");
+    let v: Vec<f32> = rand::rng().sample_iter(range).take(dim).collect();
+    vector_to_hex_string(&v)
+}
+
+fn vector_to_hex_string(numbers: &[f32]) -> String {
+    let bytes: Vec<u8> = numbers
+        .iter()
+        .flat_map(|&float| float.to_le_bytes().to_vec())
+        .collect();
+
+    hex::encode(&bytes)
+        .as_bytes()
+        .chunks(2)
+        .fold(String::new(), |acc, chunk| {
+            let s = std::str::from_utf8(chunk).unwrap();
+            acc + &format!("\\x{}", s)
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_vector_generation() {
+        let v: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0, 5.0];
+        let s = vector_to_hex_string(&v);
+        assert_eq!(s, "\\x00\\x00\\x80\\x3f\\x00\\x00\\x00\\x40\\x00\\x00\\x40\\x40\\x00\\x00\\x80\\x40\\x00\\x00\\xa0\\x40");
+    }
 }

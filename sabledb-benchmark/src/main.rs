@@ -108,6 +108,7 @@ async fn task_main(
             opts.key_range = LIST_KEY_RANGE;
             tests::run_hset(stream, opts).await?;
         }
+        "vecdb_ingest" => tests::run_vecdb_ingest(stream, opts).await?,
         _ => {
             panic!("don't know how to run test: `{}`", opts.test);
         }

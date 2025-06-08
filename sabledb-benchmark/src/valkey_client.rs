@@ -1,3 +1,4 @@
+use crate::sb_options as options;
 use bytes::BytesMut;
 use pki_types::{CertificateDer, ServerName, UnixTime};
 use sbcommonlib::{
@@ -214,6 +215,50 @@ impl ValkeyClient {
         self.builder.add_bulk_string(buffer, key);
         self.builder.add_bulk_string(buffer, field);
         self.builder.add_bulk_string(buffer, value);
+    }
+
+    // Build an inline string
+    pub fn build_vecdb_hset_command(&self, key: &str, field: &str, value: &str) -> String {
+        // build the command
+        format!("HSET {} {} \"{}\"\r\n", key, field, value)
+    }
+
+    /// Build FT.CREATE command.
+    /// Example:
+    /// FT.CREATE hash_idx1 ON HASH PREFIX 1 hash: SCHEMA vec AS VEC VECTOR HNSW 6 DIM 2 TYPE FLOAT32 DISTANCE_METRIC L2
+    /// Return the index name.
+    pub fn build_ft_create_command(&self, buffer: &mut BytesMut, opts: &crate::Options) -> String {
+        // build the command
+        let index_name = options::vecdb_index_name();
+        let prefix = options::vecdb_index_prefix();
+        let dim = opts.dim.to_string();
+        let parts = [
+            "FT.CREATE",
+            index_name.as_str(),
+            "ON",
+            "HASH",
+            "PREFIX",
+            "1",
+            prefix.as_str(),
+            "SCHEMA",
+            "vec",
+            "AS",
+            "VEC",
+            "VECTOR",
+            "HNSW",
+            "6",
+            "DIM",
+            dim.as_str(),
+            "TYPE",
+            "FLOAT32",
+            "DISTANCE_METRIC",
+            "L2",
+        ];
+        self.builder.add_array_len(buffer, parts.len());
+        parts
+            .iter()
+            .for_each(|s| self.builder.add_bulk_string(buffer, s.as_bytes()));
+        index_name
     }
 
     async fn read_more_bytes(&mut self, stream: &mut StreamType) -> Result<(), CommonError> {
