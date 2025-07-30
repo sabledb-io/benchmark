@@ -104,6 +104,10 @@ pub struct Options {
     /// set there.
     #[arg(short = 's', long, verbatim_doc_comment)]
     pub preset: Option<String>,
+
+    /// Use cluster enabled client.
+    #[arg(long, verbatim_doc_comment, default_value = "false")]
+    pub cluster: bool,
 }
 
 impl Options {
@@ -132,6 +136,14 @@ impl Options {
             );
             std::process::exit(1);
         };
+
+        if self.cluster && self.pipeline > 1 {
+            eprintln!(
+                "{}: cluster mode requested, changing pipeline value to 1",
+                "NOTICE".yellow().bold(),
+            );
+            self.pipeline = 1;
+        }
 
         *VECDB_INDEX_NAME.write().expect("mutex error") = index_name.to_string();
         *VECDB_INDEX_PREFIX.write().expect("mutex error") = index_prefix.to_string();

@@ -1,4 +1,4 @@
-use crate::valkey_client::{StreamType, ValkeyClient};
+use crate::valkey_client::{Connection, ValkeyClient};
 use crate::{bench_utils, sb_options as options, sb_options::Options, stats};
 use bytes::BytesMut;
 use sbcommonlib::{stopwatch::StopWatch, ValkeyObject};
@@ -107,7 +107,7 @@ fn expect_integer(response: &ValkeyObject) -> Result<(), BenchmarkError> {
 
 /// Run the `set` test case
 pub async fn run_set(
-    mut stream: StreamType,
+    mut conn: Box<dyn Connection>,
     opts: Options,
     requests_to_send: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -115,7 +115,7 @@ pub async fn run_set(
     let key_size = opts.get_key_size();
     let key_range = opts.key_range;
     let payload = bench_utils::generate_payload(opts.data_size);
-    let mut client = ValkeyClient::default();
+    let client = ValkeyClient::default();
     while requests_sent < requests_to_send {
         let mut buffer = bytes::BytesMut::with_capacity(1024);
         for _ in 0..opts.pipeline {
@@ -124,10 +124,10 @@ pub async fn run_set(
         }
 
         let sw = StopWatch::default();
-        client.write_buffer(&mut stream, &buffer).await?;
-        // read "pipeline" responses
-        for _ in 0..opts.pipeline {
-            expect_ok(&client.read_response(&mut stream).await?)?;
+        let results = conn.send_recv_multi(&buffer, opts.pipeline).await?;
+        // validate each response
+        for obj in &results {
+            expect_ok(obj)?;
         }
 
         stats::incr_requests(opts.pipeline);
@@ -139,14 +139,14 @@ pub async fn run_set(
 
 /// Run the `get` test case
 pub async fn run_get(
-    mut stream: StreamType,
+    mut conn: Box<dyn Connection>,
     opts: Options,
     requests_to_send: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut requests_sent = 0;
     let key_size = opts.get_key_size();
     let key_range = opts.key_range;
-    let mut client = ValkeyClient::default();
+    let client = ValkeyClient::default();
     while requests_sent < requests_to_send {
         let mut buffer = bytes::BytesMut::with_capacity(1024);
         for _ in 0..opts.pipeline {
@@ -155,11 +155,11 @@ pub async fn run_get(
         }
 
         let sw = StopWatch::default();
-        client.write_buffer(&mut stream, &buffer).await?;
+        let objects = conn.send_recv_multi(&buffer, opts.pipeline).await?;
 
-        // read "pipeline" responses
-        for _ in 0..opts.pipeline {
-            if expect_string_or_null(&client.read_response(&mut stream).await?)? {
+        // validate each response
+        for object in &objects {
+            if expect_string_or_null(object)? {
                 stats::incr_hits();
             }
         }
@@ -173,12 +173,12 @@ pub async fn run_get(
 
 /// Run the `ping` test case
 pub async fn run_ping(
-    mut stream: StreamType,
+    mut conn: Box<dyn Connection>,
     opts: Options,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let requests_to_send = opts.client_requests();
     let mut requests_sent = 0;
-    let mut client = ValkeyClient::default();
+    let client = ValkeyClient::default();
     while requests_sent < requests_to_send {
         let mut buffer = bytes::BytesMut::with_capacity(1024);
         for _ in 0..opts.pipeline {
@@ -186,10 +186,10 @@ pub async fn run_ping(
         }
 
         let sw = StopWatch::default();
-        client.write_buffer(&mut stream, &buffer).await?;
-        // read "pipeline" responses
-        for _ in 0..opts.pipeline {
-            expect_pong(&client.read_response(&mut stream).await?)?;
+        let objects = conn.send_recv_multi(&buffer, opts.pipeline).await?;
+        // validate each response
+        for object in &objects {
+            expect_pong(object)?;
         }
 
         stats::incr_requests(opts.pipeline);
@@ -201,14 +201,14 @@ pub async fn run_ping(
 
 /// Run the `incr` test case
 pub async fn run_incr(
-    mut stream: StreamType,
+    mut conn: Box<dyn Connection>,
     opts: Options,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let requests_to_send = opts.client_requests();
     let mut requests_sent = 0;
     let key_size = opts.get_key_size();
     let key_range = opts.key_range;
-    let mut client = ValkeyClient::default();
+    let client = ValkeyClient::default();
     while requests_sent < requests_to_send {
         let mut buffer = bytes::BytesMut::with_capacity(1024);
         for _ in 0..opts.pipeline {
@@ -217,11 +217,11 @@ pub async fn run_incr(
         }
 
         let sw = StopWatch::default();
-        client.write_buffer(&mut stream, &buffer).await?;
+        let objects = conn.send_recv_multi(&buffer, opts.pipeline).await?;
 
-        // read "pipeline" responses
-        for _ in 0..opts.pipeline {
-            expect_integer(&client.read_response(&mut stream).await?)?;
+        // validate each response
+        for object in &objects {
+            expect_integer(object)?;
             stats::incr_hits();
         }
 
@@ -234,7 +234,7 @@ pub async fn run_incr(
 
 /// Run the `set` test case
 pub async fn run_push(
-    mut stream: StreamType,
+    mut conn: Box<dyn Connection>,
     right: bool,
     opts: Options,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -243,7 +243,7 @@ pub async fn run_push(
     let key_size = opts.get_key_size();
     let key_range = opts.key_range;
     let payload = bench_utils::generate_payload(opts.data_size);
-    let mut client = ValkeyClient::default();
+    let client = ValkeyClient::default();
     while requests_sent < requests_to_send {
         let mut buffer = bytes::BytesMut::with_capacity(1024);
         for _ in 0..opts.pipeline {
@@ -252,10 +252,11 @@ pub async fn run_push(
         }
 
         let sw = StopWatch::default();
-        client.write_buffer(&mut stream, &buffer).await?;
-        // read "pipeline" responses
-        for _ in 0..opts.pipeline {
-            expect_integer(&client.read_response(&mut stream).await?)?;
+        let objects = conn.send_recv_multi(&buffer, opts.pipeline).await?;
+
+        // validate each response
+        for object in &objects {
+            expect_integer(object)?;
         }
         stats::incr_requests(opts.pipeline);
         stats::record_latency(sw.elapsed_micros()?.try_into().unwrap_or(u64::MAX));
@@ -266,7 +267,7 @@ pub async fn run_push(
 
 /// Run the `set` test case
 pub async fn run_pop(
-    mut stream: StreamType,
+    mut conn: Box<dyn Connection>,
     right: bool,
     opts: Options,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -274,7 +275,7 @@ pub async fn run_pop(
     let mut requests_sent = 0;
     let key_size = opts.get_key_size();
     let key_range = opts.key_range;
-    let mut client = ValkeyClient::default();
+    let client = ValkeyClient::default();
     while requests_sent < requests_to_send {
         let mut buffer = bytes::BytesMut::with_capacity(1024);
         for _ in 0..opts.pipeline {
@@ -283,11 +284,11 @@ pub async fn run_pop(
         }
 
         let sw = StopWatch::default();
-        client.write_buffer(&mut stream, &buffer).await?;
+        let objects = conn.send_recv_multi(&buffer, opts.pipeline).await?;
 
-        // read "pipeline" responses
-        for _ in 0..opts.pipeline {
-            if expect_string_or_null(&client.read_response(&mut stream).await?)? {
+        // validate each response
+        for object in &objects {
+            if expect_string_or_null(object)? {
                 stats::incr_hits();
             }
         }
@@ -301,14 +302,14 @@ pub async fn run_pop(
 
 /// Run the `hset` test case
 pub async fn run_hset(
-    mut stream: StreamType,
+    mut conn: Box<dyn Connection>,
     opts: Options,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let requests_to_send = opts.client_requests();
     let mut requests_sent = 0;
     let key_size = opts.get_key_size();
     let key_range = opts.key_range;
-    let mut client = ValkeyClient::default();
+    let client = ValkeyClient::default();
     let payload = bench_utils::generate_payload(opts.data_size);
     let mut seq = 0usize;
     while requests_sent < requests_to_send {
@@ -321,11 +322,11 @@ pub async fn run_hset(
         }
 
         let sw = StopWatch::default();
-        client.write_buffer(&mut stream, &buffer).await?;
+        let objects = conn.send_recv_multi(&buffer, opts.pipeline).await?;
 
-        // read "pipeline" responses
-        for _ in 0..opts.pipeline {
-            if expect_integer_or_null(&client.read_response(&mut stream).await?)? {
+        // validate each response
+        for object in &objects {
+            if expect_integer_or_null(object)? {
                 stats::incr_hits();
             }
         }
@@ -343,12 +344,12 @@ lazy_static::lazy_static! {
 
 /// Run the `hset` test case
 pub async fn run_vecdb_ingest(
-    mut stream: StreamType,
+    mut conn: Box<dyn Connection>,
     opts: Options,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let requests_to_send = opts.client_requests();
     let mut requests_sent = 0;
-    let mut client = ValkeyClient::default();
+    let client = ValkeyClient::default();
 
     // Create the index
     let mut create_buffer = bytes::BytesMut::default();
@@ -357,8 +358,8 @@ pub async fn run_vecdb_ingest(
         "Creating index: {}",
         String::from_utf8_lossy(&create_buffer).to_string()
     );
-    client.write_buffer(&mut stream, &create_buffer).await?;
-    expect_ok_or_error_contains(&client.read_response(&mut stream).await?, "already exists")?;
+    let obj = conn.send_recv(&create_buffer).await?;
+    expect_ok_or_error_contains(&obj, "already exists")?;
 
     let prefix = options::vecdb_index_prefix();
     while requests_sent < requests_to_send {
@@ -375,11 +376,11 @@ pub async fn run_vecdb_ingest(
         tracing::debug!("Running command: {}", buffer_string);
 
         let buffer = BytesMut::from(buffer_string.as_bytes());
-        client.write_buffer(&mut stream, &buffer).await?;
+        let objects = conn.send_recv_multi(&buffer, opts.pipeline).await?;
 
-        // read "pipeline" responses
-        for _ in 0..opts.pipeline {
-            if expect_integer_or_null(&client.read_response(&mut stream).await?)? {
+        // validate each response
+        for object in &objects {
+            if expect_integer_or_null(object)? {
                 stats::incr_hits();
             }
         }
