@@ -4,8 +4,10 @@ mod stats;
 mod tests;
 mod valkey_client;
 
+use colored::Colorize;
 use num_format::{Locale, ToFormattedString};
 use sb_options::Options;
+use valkey_client::{ValkeyClient, ValkeyCluster};
 
 /// Thread main function
 async fn thread_main(opts: Options) -> Result<(), Box<dyn std::error::Error>> {
@@ -77,38 +79,38 @@ async fn task_main(
     requests_count: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
     const LIST_KEY_RANGE: usize = 1000;
-    let stream = crate::valkey_client::ValkeyClient::connect(
-        opts.host.clone(),
-        opts.port as u16,
-        opts.tls_enabled(),
-    )
-    .await?;
+    let conn = if opts.cluster {
+        ValkeyCluster::connect(opts.host.clone(), opts.port as u16, opts.tls_enabled()).await?
+    } else {
+        ValkeyClient::connect(opts.host.clone(), opts.port as u16, opts.tls_enabled()).await?
+    };
+
     match opts.test.as_str() {
-        "set" => tests::run_set(stream, opts, requests_count).await?,
-        "get" => tests::run_get(stream, opts, requests_count).await?,
-        "ping" => tests::run_ping(stream, opts).await?,
-        "incr" => tests::run_incr(stream, opts).await?,
+        "set" => tests::run_set(conn, opts, requests_count).await?,
+        "get" => tests::run_get(conn, opts, requests_count).await?,
+        "ping" => tests::run_ping(conn, opts).await?,
+        "incr" => tests::run_incr(conn, opts).await?,
         "rpush" => {
             opts.key_range = LIST_KEY_RANGE;
-            tests::run_push(stream, true, opts).await?;
+            tests::run_push(conn, true, opts).await?;
         }
         "rpop" => {
             opts.key_range = LIST_KEY_RANGE;
-            tests::run_pop(stream, true, opts).await?;
+            tests::run_pop(conn, true, opts).await?;
         }
         "lpush" => {
             opts.key_range = LIST_KEY_RANGE;
-            tests::run_push(stream, false, opts).await?;
+            tests::run_push(conn, false, opts).await?;
         }
         "lpop" => {
             opts.key_range = LIST_KEY_RANGE;
-            tests::run_pop(stream, false, opts).await?;
+            tests::run_pop(conn, false, opts).await?;
         }
         "hset" => {
             opts.key_range = LIST_KEY_RANGE;
-            tests::run_hset(stream, opts).await?;
+            tests::run_hset(conn, opts).await?;
         }
-        "vecdb_ingest" => tests::run_vecdb_ingest(stream, opts).await?,
+        "vecdb_ingest" => tests::run_vecdb_ingest(conn, opts).await?,
         _ => {
             panic!("don't know how to run test: `{}`", opts.test);
         }
@@ -132,7 +134,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_max_level(debug_level)
         .init();
 
-    println!("Using command line: {}", cmdline);
+    println!("{}: {}", "Using command line:".bold(), cmdline.italic());
+    if args.cluster {
+        println!(
+            "{}: {}",
+            "Using cluster client".bold(),
+            "true".bold().green().italic()
+        );
+    } else {
+        println!(
+            "{}: {}",
+            "Using cluster client".bold(),
+            "false".bold().italic()
+        );
+    }
 
     // panic! should go to the log
     std::panic::set_hook(Box::new(|e| {
@@ -198,9 +213,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let requests_per_ms: usize = requests_per_ms as usize;
     println!(
         "\n    RPS: {}",
-        requests_per_ms.to_formatted_string(&Locale::en)
+        requests_per_ms
+            .to_formatted_string(&Locale::en)
+            .bold()
+            .green(),
     );
-    println!("    Hit rate: {}%", hits / count * 100.0);
+    println!(
+        "    Hit rate: {}",
+        format!("{}%", hits / count * 100.0).bold().green()
+    );
     if args.get_setget_ratio().is_some() {
         println!("    GET clients count: {}", stats::setget_get_tasks());
         println!("    SET clients count: {}", stats::setget_set_tasks());
