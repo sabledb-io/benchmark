@@ -18,7 +18,8 @@ pub fn vecdb_index_prefix() -> String {
     VECDB_INDEX_PREFIX.read().expect("mutex error").clone()
 }
 
-#[derive(Parser, Debug, Clone)]
+use serde::Serialize;
+#[derive(Parser, Debug, Clone, Serialize, Default)]
 #[clap(disable_help_flag = true)]
 pub struct Options {
     /// Print this help message and exit
@@ -74,8 +75,8 @@ pub struct Options {
     pub num_requests: usize,
 
     /// Log level
-    #[arg(short, long)]
-    pub log_level: Option<tracing::Level>,
+    #[arg(short, long, default_value = "error")]
+    pub log_level: String,
 
     /// Use TLS handshake with SableDB / Valkey
     #[arg(long, default_value = "false")]
@@ -108,6 +109,10 @@ pub struct Options {
     /// Use cluster enabled client.
     #[arg(long, verbatim_doc_comment, default_value = "false")]
     pub cluster: bool,
+
+    /// If set, the benchmark will dump a JSON report to stdout.
+    #[arg(long, verbatim_doc_comment, default_value = "false")]
+    pub json: bool,
 }
 
 impl Options {
@@ -164,6 +169,11 @@ impl Options {
         self.ssl || self.tls
     }
 
+    /// Return true if output is JSON file
+    pub fn is_json_output(&self) -> bool {
+        self.json
+    }
+
     /// If the test requested is "setget" return the ratio between
     /// the two: SET_COUNT:GET_COUNT, e.g. (1,4) -> perform 1 set for every 4 get calls
     pub fn get_setget_ratio(&self) -> Option<(f32, f32)> {
@@ -196,6 +206,18 @@ impl Options {
                 .saturating_add(1)
                 .try_into()
                 .unwrap_or(usize::MAX)
+        }
+    }
+
+    pub fn get_log_level(&self) -> tracing::Level {
+        let log_level = self.log_level.to_lowercase();
+        match log_level.as_str() {
+            "trace" => tracing::Level::TRACE,
+            "debug" => tracing::Level::DEBUG,
+            "info" => tracing::Level::INFO,
+            "warn" => tracing::Level::WARN,
+            "error" => tracing::Level::ERROR,
+            _ => tracing::Level::INFO,
         }
     }
 

@@ -7,6 +7,7 @@ mod valkey_client;
 use colored::Colorize;
 use num_format::{Locale, ToFormattedString};
 use sb_options::Options;
+use stats::Stats;
 use valkey_client::{ValkeyClient, ValkeyCluster};
 
 /// Thread main function
@@ -122,31 +123,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (mut args, cmdline) = Options::initialise();
     args.finalise();
 
+    stats::set_use_json_output(args.is_json_output());
+
     if args.randomize {
         bench_utils::set_randomize_keys(true);
     }
 
     // prepare log formatter
-    let debug_level = args.log_level.unwrap_or(tracing::Level::INFO);
+    let debug_level = args.get_log_level();
     tracing_subscriber::fmt::fmt()
         .with_thread_names(true)
         .with_thread_ids(true)
         .with_max_level(debug_level)
         .init();
 
-    println!("{}: {}", "Using command line:".bold(), cmdline.italic());
-    if args.cluster {
-        println!(
-            "{}: {}",
-            "Using cluster client".bold(),
-            "true".bold().green().italic()
-        );
-    } else {
-        println!(
-            "{}: {}",
-            "Using cluster client".bold(),
-            "false".bold().italic()
-        );
+    if !stats::is_json_output() {
+        println!("{}: {}", "Using command line:".bold(), cmdline.italic());
+        if args.cluster {
+            println!(
+                "{}: {}",
+                "Using cluster client".bold(),
+                "true".bold().green().italic()
+            );
+        } else {
+            println!(
+                "{}: {}",
+                "Using cluster client".bold(),
+                "false".bold().italic()
+            );
+        }
     }
 
     // panic! should go to the log
@@ -202,33 +207,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     stats::finish_progress();
+    let test_duration_ms = (sw.elapsed_micros()? / 1000) as f64; // duration in MS
 
-    // calculate the RPS
-    let millis = (sw.elapsed_micros()? / 1000) as f64; // duration in MS
-    let count = stats::requests_processed() as f64;
-    let hits = stats::total_hits() as f64;
+    if !stats::is_json_output() {
+        // calculate the RPS
+        let count = stats::requests_processed() as f64;
+        let hits = stats::total_hits() as f64;
 
-    let mut requests_per_ms = count / millis;
-    requests_per_ms *= 1000.0;
-    let requests_per_ms: usize = requests_per_ms as usize;
-    println!(
-        "\n    RPS: {}",
-        requests_per_ms
-            .to_formatted_string(&Locale::en)
-            .bold()
-            .green(),
-    );
-    println!(
-        "    Hit rate: {}",
-        format!("{}%", hits / count * 100.0).bold().green()
-    );
-    if args.get_setget_ratio().is_some() {
-        println!("    GET clients count: {}", stats::setget_get_tasks());
-        println!("    SET clients count: {}", stats::setget_set_tasks());
+        let mut requests_per_ms = count / test_duration_ms;
+        requests_per_ms *= 1000.0;
+        let requests_per_ms: usize = requests_per_ms as usize;
+        println!(
+            "\n    RPS: {}",
+            requests_per_ms
+                .to_formatted_string(&Locale::en)
+                .bold()
+                .green(),
+        );
+        println!(
+            "    Hit rate: {}",
+            format!("{}%", hits / count * 100.0).bold().green()
+        );
+        if args.get_setget_ratio().is_some() {
+            println!("    GET clients count: {}", stats::setget_get_tasks());
+            println!("    SET clients count: {}", stats::setget_set_tasks());
+        }
+
+        println!("    Key size  : {} Bytes", args.get_key_size());
+        println!("    Value size: {} Bytes", args.data_size);
+        stats::print_latency();
+    } else {
+        let stats = Stats::collect(&args, test_duration_ms);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&stats).expect("failed to serialise stats to JSON")
+        );
     }
-
-    println!("    Key size  : {} Bytes", args.get_key_size());
-    println!("    Value size: {} Bytes", args.data_size);
-    stats::print_latency();
     Ok(())
 }
