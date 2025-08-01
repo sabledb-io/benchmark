@@ -229,6 +229,7 @@ impl RespResponseParserV2 {
 mod tests {
     use super::*;
     use test_case::test_case;
+
     #[test_case(b"*4\r\n$5\r\nvalue\r\n$5\r\nvalue\r\n$-1\r\n$5\r\nvalue\r\n",
         ValkeyObject::Array(vec![
             ValkeyObject::Str(BytesMut::from("value")),
@@ -247,6 +248,54 @@ mod tests {
         ValkeyObject::Error(BytesMut::from("ERR bad thing happened"))
     ; "parse err message")]
     #[test_case(b":42\r\n", ValkeyObject::Integer(42); "parse integer")]
+    #[test_case(b"*2\r\n*4\r\n$5\r\nvalue\r\n$5\r\nvalue\r\n$-1\r\n$5\r\nvalue\r\n*4\r\n$5\r\nvalue\r\n$5\r\nvalue\r\n$-1\r\n$5\r\nvalue\r\n",
+        ValkeyObject::Array(vec![
+            ValkeyObject::Array(vec![
+                ValkeyObject::Str(BytesMut::from("value")),
+                ValkeyObject::Str(BytesMut::from("value")),
+                ValkeyObject::NullString,
+                ValkeyObject::Str(BytesMut::from("value"))
+            ]),
+            ValkeyObject::Array(vec![
+                ValkeyObject::Str(BytesMut::from("value")),
+                ValkeyObject::Str(BytesMut::from("value")),
+                ValkeyObject::NullString,
+                ValkeyObject::Str(BytesMut::from("value"))
+            ])
+        ])
+    ; "parse nested array")]
+    #[test_case(b"*2\r\n*2\r\n*4\r\n$5\r\nvalue\r\n$5\r\nvalue\r\n$-1\r\n$5\r\nvalue\r\n*4\r\n$5\r\nvalue\r\n$5\r\nvalue\r\n$-1\r\n$5\r\nvalue\r\n*2\r\n*4\r\n$5\r\nvalue\r\n$5\r\nvalue\r\n$-1\r\n$5\r\nvalue\r\n*4\r\n$5\r\nvalue\r\n$5\r\nvalue\r\n$-1\r\n$5\r\nvalue\r\n",
+    ValkeyObject::Array(vec![
+        ValkeyObject::Array(vec![
+            ValkeyObject::Array(vec![
+                ValkeyObject::Str(BytesMut::from("value")),
+                ValkeyObject::Str(BytesMut::from("value")),
+                ValkeyObject::NullString,
+                ValkeyObject::Str(BytesMut::from("value"))
+            ]),
+            ValkeyObject::Array(vec![
+                ValkeyObject::Str(BytesMut::from("value")),
+                ValkeyObject::Str(BytesMut::from("value")),
+                ValkeyObject::NullString,
+                ValkeyObject::Str(BytesMut::from("value"))
+            ])
+        ]),
+        ValkeyObject::Array(vec![
+            ValkeyObject::Array(vec![
+                ValkeyObject::Str(BytesMut::from("value")),
+                ValkeyObject::Str(BytesMut::from("value")),
+                ValkeyObject::NullString,
+                ValkeyObject::Str(BytesMut::from("value"))
+            ]),
+            ValkeyObject::Array(vec![
+                ValkeyObject::Str(BytesMut::from("value")),
+                ValkeyObject::Str(BytesMut::from("value")),
+                ValkeyObject::NullString,
+                ValkeyObject::Str(BytesMut::from("value"))
+            ])
+        ])
+    ])
+    ; "parse nested array 3")]
     fn test_happy_response_parser(
         buffer: &[u8],
         expected_response: ValkeyObject,
