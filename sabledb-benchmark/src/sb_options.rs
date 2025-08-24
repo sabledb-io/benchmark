@@ -1,6 +1,7 @@
 use clap::Parser;
 use colored::Colorize;
 use ini::Ini;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::RwLock;
 
@@ -18,7 +19,6 @@ pub fn vecdb_index_prefix() -> String {
     VECDB_INDEX_PREFIX.read().expect("mutex error").clone()
 }
 
-use serde::Serialize;
 #[derive(Parser, Debug, Clone, Serialize, Default)]
 #[clap(disable_help_flag = true)]
 pub struct Options {
@@ -69,6 +69,11 @@ pub struct Options {
     /// When testing "vecdb_ingest", use this to pass the index name + the prefix as a comma separated strings
     #[arg(long, default_value = "my_index,my_prefix", verbatim_doc_comment)]
     pub vecdb_index: String,
+
+    /// When loading vectors into the database, we use a global counter to generate the vector values. By default this
+    /// seed is set to `0`. Use this to change it. With this, a user may generate unique vectors per execution. Default value: 0
+    #[arg(long, default_value = "0", verbatim_doc_comment)]
+    pub vec_seed: u64,
 
     /// Number of unique keys in the benchmark
     #[arg(short = 'r', long, default_value = "1000000")]

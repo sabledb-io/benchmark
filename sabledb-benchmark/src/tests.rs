@@ -2,7 +2,7 @@ use crate::valkey_client::{Connection, ValkeyClient};
 use crate::{bench_utils, sb_options as options, sb_options::Options, stats};
 use bytes::BytesMut;
 use sbcommonlib::{stopwatch::StopWatch, ValkeyObject};
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicU64, Ordering};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -361,6 +361,11 @@ lazy_static::lazy_static! {
     static ref VEC_COUNTER: AtomicU64 = AtomicU64::default();
 }
 
+/// Initialise the vector generator seed to `count`
+pub fn set_vec_index_generator_seed(seed: u64) {
+    VEC_COUNTER.fetch_add(seed, Ordering::Relaxed);
+}
+
 /// Run the `hset` test case
 pub async fn run_vecdb_ingest(
     mut conn: Box<dyn Connection>,
@@ -384,7 +389,7 @@ pub async fn run_vecdb_ingest(
     while requests_sent < requests_to_send {
         let mut commands = Vec::<String>::with_capacity(opts.pipeline);
         for _ in 0..opts.pipeline {
-            let next_val = VEC_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let next_val = VEC_COUNTER.fetch_add(1, Ordering::Relaxed);
             let key = format!("{}:{}", prefix, next_val);
             let payload = bench_utils::generate_vector(opts.dim);
             commands.push(client.build_vecdb_hset_command(&key, "vector", &payload));

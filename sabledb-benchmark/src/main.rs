@@ -125,6 +125,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     args.finalise();
 
     stats::set_use_json_output(args.is_json_output());
+    tests::set_vec_index_generator_seed(args.vec_seed);
 
     if args.randomize {
         bench_utils::set_randomize_keys(true);
