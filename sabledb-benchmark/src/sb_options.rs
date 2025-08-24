@@ -44,7 +44,7 @@ pub struct Options {
     pub port: usize,
 
     /// test suits to run. Possible values are:
-    /// "set", "get", "lpush", "lpop", "incr", "rpop", "rpush", "ping", "hset", "setget", "vecdb_ingest".
+    /// "set", "get", "lpush", "lpop", "incr", "rpop", "rpush", "ping", "hset", "setget", "vecdb_ingest" and "ft.search".
     /// Note that when the test is "setget", you can control the ratio by passing: "--setget-ratio"
     #[arg(short, long, default_value = "set", verbatim_doc_comment)]
     pub test: String,
@@ -61,6 +61,10 @@ pub struct Options {
     /// When running vector DB ingestion ("-t vecdb_ingest") test, pass here the vector dimension size.
     #[arg(long, default_value = "128", verbatim_doc_comment)]
     pub dim: usize,
+
+    /// KNN parameter to pass to the `FT.SEARCH` command.
+    #[arg(long, default_value = "10", verbatim_doc_comment)]
+    pub knn: usize,
 
     /// When testing "vecdb_ingest", use this to pass the index name + the prefix as a comma separated strings
     #[arg(long, default_value = "my_index,my_prefix", verbatim_doc_comment)]

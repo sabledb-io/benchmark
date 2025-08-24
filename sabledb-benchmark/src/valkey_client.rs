@@ -181,8 +181,14 @@ impl StreamHelper {
         read_buffer: &mut BytesMut,
     ) -> Result<ValkeyObject, CommonError> {
         loop {
+            tracing::debug!(
+                "Parsing response buffer (len:{}): {}",
+                read_buffer.len(),
+                String::from_utf8_lossy(&read_buffer).to_string()
+            );
             match RespResponseParserV2::parse_response(read_buffer)? {
                 ResponseParseResult::NeedMoreData => {
+                    tracing::debug!("Need more data");
                     Self::read_more_bytes(stream, read_buffer).await?;
                 }
                 ResponseParseResult::Ok((consume, obj)) => {
@@ -388,10 +394,19 @@ impl ValkeyClient {
         self.builder.add_bulk_string(buffer, value);
     }
 
-    // Build an inline string
+    // Build an HSET command that matches an index prefix.
     pub fn build_vecdb_hset_command(&self, key: &str, field: &str, value: &str) -> String {
         // build the command
         format!("HSET {} {} \"{}\"\r\n", key, field, value)
+    }
+
+    // Build FT.SEARCH command
+    pub fn build_ftsearch_query(&self, index_name: &str, knn: usize, query_vector: &str) -> String {
+        // build the command
+        format!(
+            "FT.SEARCH {} *=>\"[KNN {} @vector $query_vector]\" PARAMS 2 query_vector \"{}\" DIALECT 2\r\n",
+            index_name, knn, query_vector,
+        )
     }
 
     /// Build FT.CREATE command.
@@ -412,9 +427,7 @@ impl ValkeyClient {
             "1",
             prefix.as_str(),
             "SCHEMA",
-            "vec",
-            "AS",
-            "VEC",
+            "vector",
             "VECTOR",
             "HNSW",
             "6",

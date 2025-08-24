@@ -112,6 +112,7 @@ async fn task_main(
             tests::run_hset(conn, opts).await?;
         }
         "vecdb_ingest" => tests::run_vecdb_ingest(conn, opts).await?,
+        "ft.search" => tests::run_ftsearch(conn, opts).await?,
         _ => {
             panic!("don't know how to run test: `{}`", opts.test);
         }

@@ -105,6 +105,25 @@ fn expect_integer(response: &ValkeyObject) -> Result<(), BenchmarkError> {
     }
 }
 
+/// Expect that `response` to be an array of a given size.
+#[inline]
+fn expect_array_of_size(response: &ValkeyObject, size: usize) -> Result<bool, BenchmarkError> {
+    match response {
+        ValkeyObject::Array(arr) if arr.len().eq(&size) => Ok(true),
+        ValkeyObject::Array(arr) => {
+            return Err(BenchmarkError::UnexpectedResponse(format!(
+                "Expected Array of size {}. Got: Array of size: {}",
+                size,
+                arr.len(),
+            )));
+        }
+        other => Err(BenchmarkError::UnexpectedResponse(format!(
+            "Expected Array of size {}. Got: {:?}",
+            size, other
+        ))),
+    }
+}
+
 /// Run the `set` test case
 pub async fn run_set(
     mut conn: Box<dyn Connection>,
@@ -368,10 +387,10 @@ pub async fn run_vecdb_ingest(
             let next_val = VEC_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let key = format!("{}:{}", prefix, next_val);
             let payload = bench_utils::generate_vector(opts.dim);
-            commands.push(client.build_vecdb_hset_command(&key, "vec", &payload));
+            commands.push(client.build_vecdb_hset_command(&key, "vector", &payload));
         }
 
-        let buffer_string = commands.join(" ").to_string();
+        let buffer_string: String = commands.join(" ").into();
         let sw = StopWatch::default();
         tracing::debug!("Running command: {}", buffer_string);
 
@@ -381,6 +400,45 @@ pub async fn run_vecdb_ingest(
         // validate each response
         for object in &objects {
             if expect_integer_or_null(object)? {
+                stats::incr_hits();
+            }
+        }
+
+        stats::incr_requests(opts.pipeline);
+        stats::record_latency(sw.elapsed_micros()?.try_into().unwrap_or(u64::MAX));
+        requests_sent += opts.pipeline;
+    }
+    Ok(())
+}
+
+/// Run the `hset` test case
+pub async fn run_ftsearch(
+    mut conn: Box<dyn Connection>,
+    opts: Options,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let requests_to_send = opts.client_requests();
+    let mut requests_sent = 0;
+    let client = ValkeyClient::default();
+
+    let index_name = options::vecdb_index_name();
+    while requests_sent < requests_to_send {
+        let mut commands = Vec::<String>::with_capacity(opts.pipeline);
+        for _ in 0..opts.pipeline {
+            let search_me = bench_utils::generate_vector(opts.dim);
+            commands.push(client.build_ftsearch_query(&index_name, opts.knn, &search_me));
+        }
+
+        let buffer_string: String = commands.join(" ").into();
+        let sw = StopWatch::default();
+        tracing::debug!("Running command: {}", buffer_string);
+
+        let buffer = BytesMut::from(buffer_string.as_bytes());
+        let objects = conn.send_recv_multi(&buffer, opts.pipeline).await?;
+
+        // validate each response
+        for object in &objects {
+            // we expect an array of KNN entries
+            if expect_array_of_size(object, opts.knn.saturating_mul(2).saturating_add(1))? {
                 stats::incr_hits();
             }
         }
