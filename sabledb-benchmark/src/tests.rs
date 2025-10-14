@@ -110,13 +110,11 @@ fn expect_integer(response: &ValkeyObject) -> Result<(), BenchmarkError> {
 fn expect_array_of_size(response: &ValkeyObject, size: usize) -> Result<bool, BenchmarkError> {
     match response {
         ValkeyObject::Array(arr) if arr.len().eq(&size) => Ok(true),
-        ValkeyObject::Array(arr) => {
-            return Err(BenchmarkError::UnexpectedResponse(format!(
-                "Expected Array of size {}. Got: Array of size: {}",
-                size,
-                arr.len(),
-            )));
-        }
+        ValkeyObject::Array(arr) => Err(BenchmarkError::UnexpectedResponse(format!(
+            "Expected Array of size {}. Got: Array of size: {}",
+            size,
+            arr.len(),
+        ))),
         other => Err(BenchmarkError::UnexpectedResponse(format!(
             "Expected Array of size {}. Got: {:?}",
             size, other
@@ -395,7 +393,7 @@ pub async fn run_vecdb_ingest(
             commands.push(client.build_vecdb_hset_command(&key, "vector", &payload));
         }
 
-        let buffer_string: String = commands.join(" ").into();
+        let buffer_string: String = commands.join(" ");
         let sw = StopWatch::default();
         tracing::debug!("Running command: {}", buffer_string);
 
@@ -433,7 +431,7 @@ pub async fn run_ftsearch(
             commands.push(client.build_ftsearch_query(&index_name, opts.knn, &search_me));
         }
 
-        let buffer_string: String = commands.join(" ").into();
+        let buffer_string: String = commands.join(" ");
         let sw = StopWatch::default();
         tracing::debug!("Running command: {}", buffer_string);
 

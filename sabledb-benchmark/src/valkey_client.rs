@@ -185,7 +185,7 @@ impl StreamHelper {
             tracing::debug!(
                 "Parsing response buffer (len:{}): {}",
                 read_buffer.len(),
-                String::from_utf8_lossy(&read_buffer).to_string()
+                String::from_utf8_lossy(read_buffer).to_string()
             );
             match RespResponseParserV2::parse_response(read_buffer)? {
                 ResponseParseResult::NeedMoreData => {
