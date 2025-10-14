@@ -151,6 +151,7 @@ impl ServerCertVerifier for NoVerifier {
 }
 
 #[derive(Default)]
+#[allow(clippy::large_enum_variant)]
 pub enum StreamType {
     Tls(TlsStream<TcpStream>),
     Plain(TcpStream),
