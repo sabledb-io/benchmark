@@ -1,7 +1,7 @@
 use bytes::BytesMut;
 use rand::{
     distr::{Alphanumeric, Uniform},
-    Rng,
+    RngExt,
 };
 use sbcommonlib::BytesMutUtils;
 use std::sync::atomic::Ordering;
