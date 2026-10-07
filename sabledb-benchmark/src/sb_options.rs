@@ -53,6 +53,18 @@ pub struct Options {
     #[arg(short, long, default_value = "256")]
     pub data_size: usize,
 
+    /// Use values from a pre-prepared dataset instead of random payloads. Each line in the file is one value,
+    /// and a random line is picked for every command. Pass a file path, or a dataset name that is searched in
+    /// "--dataset-dir" (for example: "taxi-trips" matches "taxi-trips.json.gz"). Gzip files are supported.
+    /// When set, "--data-size" is ignored. Used by: "set", "setget", "lpush", "rpush" and "hset".
+    #[arg(long, verbatim_doc_comment)]
+    pub dataset: Option<String>,
+
+    /// Directory to search for "--dataset" names. If not set, use the "SB_DATASET_DIR" environment variable,
+    /// or the current directory.
+    #[arg(long, verbatim_doc_comment)]
+    pub dataset_dir: Option<String>,
+
     /// Key size, in bytes. If not provided, the key size is calculated based on the requested key range.
     /// For example, if no "key_size" is provided and the "key_range" is 100,000, the key size will be 6
     #[arg(short, long, verbatim_doc_comment)]
@@ -176,6 +188,23 @@ impl Options {
     /// Return true if should be using TLS connection
     pub fn tls_enabled(&self) -> bool {
         self.ssl || self.tls
+    }
+
+    /// Return the directory to search for dataset names
+    pub fn get_dataset_dir(&self) -> std::path::PathBuf {
+        self.dataset_dir
+            .clone()
+            .or_else(|| std::env::var(crate::dataset::DATASET_DIR_ENV).ok())
+            .unwrap_or_else(|| ".".to_string())
+            .into()
+    }
+
+    /// Return the value size. When using a dataset, this is the average value size
+    pub fn get_value_size(&self) -> usize {
+        match crate::dataset::get() {
+            Some(ds) => ds.avg_value_size(),
+            None => self.data_size,
+        }
     }
 
     /// Return true if output is JSON file

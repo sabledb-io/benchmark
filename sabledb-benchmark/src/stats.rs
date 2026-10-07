@@ -65,7 +65,7 @@ impl Stats {
         let total_requests = requests_processed();
         let total_hits = total_hits();
         let key_size = opts.get_key_size();
-        let value_size = opts.data_size;
+        let value_size = opts.get_value_size();
         let rps = ((total_requests as f64 / test_duration_millis) * 1000.0) as usize;
         let pipeline = opts.pipeline;
         let mut latency_ms = Latency::default();

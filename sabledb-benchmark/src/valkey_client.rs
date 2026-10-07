@@ -313,7 +313,7 @@ impl ValkeyClient {
         Ok(stream)
     }
 
-    pub fn build_set_command(&self, buffer: &mut BytesMut, key: &BytesMut, value: &BytesMut) {
+    pub fn build_set_command(&self, buffer: &mut BytesMut, key: &BytesMut, value: &[u8]) {
         // prepare and send command
         self.builder.add_array_len(buffer, 3);
         self.builder.add_bulk_string(buffer, b"set");
@@ -345,7 +345,7 @@ impl ValkeyClient {
         &self,
         buffer: &mut BytesMut,
         key: &BytesMut,
-        value: &BytesMut,
+        value: &[u8],
         right: bool,
     ) {
         let cmd: &[u8] = if right { b"rpush" } else { b"lpush" };
@@ -373,7 +373,7 @@ impl ValkeyClient {
         buffer: &mut BytesMut,
         key: &BytesMut,
         field: &BytesMut,
-        value: &BytesMut,
+        value: &[u8],
     ) {
         // build the command
         self.builder.add_array_len(buffer, 4);

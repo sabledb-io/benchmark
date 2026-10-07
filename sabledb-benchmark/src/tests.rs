@@ -131,7 +131,7 @@ pub async fn run_set(
     let mut requests_sent = 0;
     let key_size = opts.get_key_size();
     let key_range = opts.key_range;
-    let payload = bench_utils::generate_payload(opts.data_size);
+    let values = bench_utils::ValueSource::new(opts.data_size);
     let client = ValkeyClient::default();
     let mut buffer = BytesMut::with_capacity(1024);
     let mut key = BytesMut::with_capacity(key_size);
@@ -140,7 +140,7 @@ pub async fn run_set(
         let start_id = bench_utils::reserve_sequential_ids(opts.pipeline);
         for i in 0..opts.pipeline {
             bench_utils::write_key(&mut key, key_size, key_range, start_id, i);
-            client.build_set_command(&mut buffer, &key, &payload);
+            client.build_set_command(&mut buffer, &key, values.next_value());
         }
 
         let sw = StopWatch::default();
@@ -273,7 +273,7 @@ pub async fn run_push(
     let mut requests_sent = 0;
     let key_size = opts.get_key_size();
     let key_range = opts.key_range;
-    let payload = bench_utils::generate_payload(opts.data_size);
+    let values = bench_utils::ValueSource::new(opts.data_size);
     let client = ValkeyClient::default();
     let mut buffer = BytesMut::with_capacity(1024);
     let mut key = BytesMut::with_capacity(key_size);
@@ -282,7 +282,7 @@ pub async fn run_push(
         let start_id = bench_utils::reserve_sequential_ids(opts.pipeline);
         for i in 0..opts.pipeline {
             bench_utils::write_key(&mut key, key_size, key_range, start_id, i);
-            client.build_push_command(&mut buffer, &key, &payload, right);
+            client.build_push_command(&mut buffer, &key, values.next_value(), right);
         }
 
         let sw = StopWatch::default();
@@ -349,7 +349,7 @@ pub async fn run_hset(
     let key_size = opts.get_key_size();
     let key_range = opts.key_range;
     let client = ValkeyClient::default();
-    let payload = bench_utils::generate_payload(opts.data_size);
+    let values = bench_utils::ValueSource::new(opts.data_size);
     let mut seq = 0u64;
     let mut buffer = BytesMut::with_capacity(1024);
     let mut key = BytesMut::with_capacity(key_size);
@@ -363,7 +363,7 @@ pub async fn run_hset(
             field.clear();
             field.extend_from_slice(b"field_");
             sbcommonlib::append_u64_decimal(&mut field, seq);
-            client.build_hset_command(&mut buffer, &key, &field, &payload);
+            client.build_hset_command(&mut buffer, &key, &field, values.next_value());
         }
 
         let sw = StopWatch::default();

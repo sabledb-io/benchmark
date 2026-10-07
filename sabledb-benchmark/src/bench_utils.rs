@@ -22,6 +22,32 @@ pub fn generate_payload(len: usize) -> BytesMut {
     BytesMutUtils::from_string(&s)
 }
 
+/// The source of the values used by the write tests
+pub enum ValueSource {
+    /// Use the same random payload for every command
+    Fixed(BytesMut),
+    /// Pick a random value from the dataset for every command
+    Dataset(&'static crate::dataset::Dataset),
+}
+
+impl ValueSource {
+    /// Use the loaded dataset if there is one, otherwise a random payload of `len` bytes
+    pub fn new(len: usize) -> Self {
+        match crate::dataset::get() {
+            Some(ds) => ValueSource::Dataset(ds),
+            None => ValueSource::Fixed(generate_payload(len)),
+        }
+    }
+
+    #[inline]
+    pub fn next_value(&self) -> &[u8] {
+        match self {
+            ValueSource::Fixed(payload) => payload,
+            ValueSource::Dataset(ds) => ds.random_value(),
+        }
+    }
+}
+
 /// Reserve a block of `count` sequential key IDs using a single atomic
 /// operation, returning the first ID in the block. Callers pass the returned
 /// `start_id` to [`write_key`] along with the per-key offset within the batch.
