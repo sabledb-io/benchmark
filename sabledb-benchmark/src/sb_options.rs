@@ -61,9 +61,13 @@ pub struct Options {
     pub dataset: Option<String>,
 
     /// Directory to search for "--dataset" names. If not set, use the "SB_DATASET_DIR" environment variable,
-    /// or the current directory.
+    /// or "./dataset" if it exists, or the current directory.
     #[arg(long, verbatim_doc_comment)]
     pub dataset_dir: Option<String>,
+
+    /// Print value size statistics for every dataset in "--dataset-dir" and exit.
+    #[arg(long, verbatim_doc_comment, default_value = "false")]
+    pub list_datasets: bool,
 
     /// Key size, in bytes. If not provided, the key size is calculated based on the requested key range.
     /// For example, if no "key_size" is provided and the "key_range" is 100,000, the key size will be 6
@@ -195,8 +199,15 @@ impl Options {
         self.dataset_dir
             .clone()
             .or_else(|| std::env::var(crate::dataset::DATASET_DIR_ENV).ok())
-            .unwrap_or_else(|| ".".to_string())
-            .into()
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| {
+                let local = std::path::PathBuf::from(crate::dataset::DEFAULT_DATASET_DIR);
+                if local.is_dir() {
+                    local
+                } else {
+                    std::path::PathBuf::from(".")
+                }
+            })
     }
 
     /// Return the value size. When using a dataset, this is the average value size

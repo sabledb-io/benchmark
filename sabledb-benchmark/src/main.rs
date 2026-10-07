@@ -129,6 +129,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (mut args, cmdline) = Options::initialise();
     args.finalise();
 
+    if args.list_datasets {
+        let dir = args.get_dataset_dir();
+        if let Err(e) = dataset::print_datasets(&dir) {
+            eprintln!("{}: {}", "error".red().bold(), e);
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
+
     stats::set_use_json_output(args.is_json_output());
     tests::set_vec_index_generator_seed(args.vec_seed);
 
