@@ -52,7 +52,7 @@ current directory. This repository includes these datasets in `dataset/`:
 | Name | Values | Avg | P50 | P99 |
 |---|---|---|---|---|
 | `github-events-50k` | 3,622 | 46.2KB | 45.6KB | 52.2KB |
-| `github-events` | 10,000 | 3.0KB | 918B | 26.2KB |
+| `github-events` | 10,000 | 2.0KB | 938B | 17.5KB |
 | `reddit-comments` | 10,000 | 530B | 440B | 1.7KB |
 | `taxi-trips` | 10,000 | 456B | 456B | 461B |
 
