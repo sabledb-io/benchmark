@@ -23,6 +23,33 @@ pub struct StringUtils {}
 pub struct BytesMutUtils {}
 pub struct TimeUtils {}
 
+/// Maximum number of decimal digits required to represent any `u64`
+/// (`u64::MAX` == 18446744073709551615, which is 20 digits).
+pub const MAX_U64_DECIMAL_DIGITS: usize = 20;
+
+/// Encode `value` as decimal ASCII into `out`, returning the slice that holds
+/// the written digits. Performs no heap allocation.
+pub fn encode_u64_decimal(value: u64, out: &mut [u8; MAX_U64_DECIMAL_DIGITS]) -> &[u8] {
+    let mut idx = out.len();
+    let mut v = value;
+    loop {
+        idx -= 1;
+        out[idx] = b'0' + (v % 10) as u8;
+        v /= 10;
+        if v == 0 {
+            break;
+        }
+    }
+    &out[idx..]
+}
+
+/// Append the decimal ASCII representation of `value` to `buffer` without
+/// allocating a temporary `String`.
+pub fn append_u64_decimal(buffer: &mut BytesMut, value: u64) {
+    let mut tmp = [0u8; MAX_U64_DECIMAL_DIGITS];
+    buffer.extend_from_slice(encode_u64_decimal(value, &mut tmp));
+}
+
 #[derive(Copy, Clone, PartialEq, Eq)]
 enum InlineState {
     Normal,

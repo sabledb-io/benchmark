@@ -69,6 +69,10 @@ async fn thread_main(opts: Options) -> Result<(), Box<dyn std::error::Error>> {
     // wait for the tasks to complete
     local.await;
 
+    // merge this worker thread's local latency histogram into the global
+    // aggregate before the thread exits
+    stats::merge_thread_latency();
+
     // remove this thread from the pool
     stats::decr_threads_running();
     Ok(())

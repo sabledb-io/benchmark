@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use bytes::BytesMut;
 use pki_types::{CertificateDer, ServerName, UnixTime};
 use sbcommonlib::{
-    BytesMutUtils, CommonError, ParserError, RequestParser, RespBuilderV2, RespResponseParserV2,
+    CommonError, ParserError, RequestParser, RespBuilderV2, RespResponseParserV2,
     ResponseParseResult, ValkeyObject,
 };
 use std::net::SocketAddrV4;
@@ -316,7 +316,7 @@ impl ValkeyClient {
     pub fn build_set_command(&self, buffer: &mut BytesMut, key: &BytesMut, value: &BytesMut) {
         // prepare and send command
         self.builder.add_array_len(buffer, 3);
-        self.builder.add_bulk_string(buffer, &BytesMut::from("set"));
+        self.builder.add_bulk_string(buffer, b"set");
         self.builder.add_bulk_string(buffer, key);
         self.builder.add_bulk_string(buffer, value);
     }
@@ -324,24 +324,21 @@ impl ValkeyClient {
     pub fn build_get_command(&self, buffer: &mut BytesMut, key: &BytesMut) {
         // prepare and send command
         self.builder.add_array_len(buffer, 2);
-        self.builder.add_bulk_string(buffer, &BytesMut::from("get"));
+        self.builder.add_bulk_string(buffer, b"get");
         self.builder.add_bulk_string(buffer, key);
     }
 
     pub fn build_ping_command(&self, buffer: &mut BytesMut) {
         // prepare and send command
         self.builder.add_array_len(buffer, 1);
-        self.builder
-            .add_bulk_string(buffer, &BytesMut::from("ping"));
+        self.builder.add_bulk_string(buffer, b"ping");
     }
 
-    pub fn build_incr_command(&self, buffer: &mut BytesMut, key: &BytesMut, incremenet: u64) {
+    pub fn build_incr_command(&self, buffer: &mut BytesMut, key: &BytesMut, increment: u64) {
         self.builder.add_array_len(buffer, 3);
-        self.builder
-            .add_bulk_string(buffer, &BytesMut::from("incrby"));
+        self.builder.add_bulk_string(buffer, b"incrby");
         self.builder.add_bulk_string(buffer, key);
-        self.builder
-            .add_bulk_string(buffer, &BytesMutUtils::from::<u64>(&incremenet));
+        self.builder.add_bulk_u64(buffer, increment);
     }
 
     pub fn build_push_command(
@@ -351,25 +348,17 @@ impl ValkeyClient {
         value: &BytesMut,
         right: bool,
     ) {
-        let cmd = if right {
-            BytesMut::from("rpush")
-        } else {
-            BytesMut::from("lpush")
-        };
+        let cmd: &[u8] = if right { b"rpush" } else { b"lpush" };
         self.builder.add_array_len(buffer, 3);
-        self.builder.add_bulk_string(buffer, &cmd);
+        self.builder.add_bulk_string(buffer, cmd);
         self.builder.add_bulk_string(buffer, key);
         self.builder.add_bulk_string(buffer, value);
     }
 
     pub fn build_pop_command(&self, buffer: &mut BytesMut, key: &BytesMut, right: bool) {
-        let cmd = if right {
-            BytesMut::from("rpop")
-        } else {
-            BytesMut::from("lpop")
-        };
+        let cmd: &[u8] = if right { b"rpop" } else { b"lpop" };
         self.builder.add_array_len(buffer, 2);
-        self.builder.add_bulk_string(buffer, &cmd);
+        self.builder.add_bulk_string(buffer, cmd);
         self.builder.add_bulk_string(buffer, key);
     }
 
@@ -388,8 +377,7 @@ impl ValkeyClient {
     ) {
         // build the command
         self.builder.add_array_len(buffer, 4);
-        self.builder
-            .add_bulk_string(buffer, &BytesMut::from("hset"));
+        self.builder.add_bulk_string(buffer, b"hset");
         self.builder.add_bulk_string(buffer, key);
         self.builder.add_bulk_string(buffer, field);
         self.builder.add_bulk_string(buffer, value);
