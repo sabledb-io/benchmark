@@ -95,6 +95,17 @@ pub struct Options {
     #[arg(short = 'r', long, default_value = "1000000")]
     pub key_range: usize,
 
+    /// Upper limit on the total requests per second, shared by all connections.
+    /// If not set, requests are sent as fast as possible.
+    #[arg(long, verbatim_doc_comment)]
+    pub limit_rps: Option<usize>,
+
+    /// Read commands (e.g. "get") touch only this percentage of the key space (1-100).
+    /// For example, if the key range is 1,000,000 and the value is 30, only the first 300,000 keys are read.
+    /// Write commands are not affected.
+    #[arg(long, verbatim_doc_comment)]
+    pub touch_keys: Option<f64>,
+
     /// Total number of requests
     #[arg(short, long, default_value = "1000000")]
     pub num_requests: usize,
@@ -153,6 +164,26 @@ impl Options {
 
         if self.num_requests == 0 {
             self.num_requests = 1000;
+        }
+
+        if let Some(pct) = self.touch_keys {
+            if !(pct > 0.0 && pct <= 100.0) {
+                eprintln!(
+                    "{}: {}: expected a percentage in the range (0, 100]",
+                    "error".red().bold(),
+                    "--touch-keys".bold(),
+                );
+                std::process::exit(1);
+            }
+        }
+
+        if self.limit_rps == Some(0) {
+            eprintln!(
+                "{}: {}: must be greater than 0",
+                "error".red().bold(),
+                "--limit-rps".bold(),
+            );
+            std::process::exit(1);
         }
 
         // parse the vecdb_index
@@ -255,6 +286,14 @@ impl Options {
                 .saturating_add(1)
                 .try_into()
                 .unwrap_or(usize::MAX)
+        }
+    }
+
+    /// Return the number of keys that read commands may touch
+    pub fn get_read_key_range(&self) -> usize {
+        match self.touch_keys {
+            Some(pct) => (((self.key_range as f64) * pct / 100.0) as usize).max(1),
+            None => self.key_range,
         }
     }
 

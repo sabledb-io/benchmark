@@ -87,6 +87,43 @@ pub fn write_key(out: &mut BytesMut, len: usize, key_range: usize, start_id: u64
     out.extend_from_slice(digits);
 }
 
+/// Limits the request rate of a single connection ("task").
+/// The global `--limit-rps` is divided equally between all connections.
+pub struct RateLimiter {
+    /// Time between two batches. `None` means no limit
+    interval: Option<std::time::Duration>,
+    next: tokio::time::Instant,
+}
+
+impl RateLimiter {
+    pub fn new(opts: &crate::sb_options::Options) -> Self {
+        let interval = opts.limit_rps.map(|rps| {
+            let per_task_rps = (rps as f64 / opts.connections as f64).max(f64::MIN_POSITIVE);
+            std::time::Duration::try_from_secs_f64(opts.pipeline as f64 / per_task_rps)
+                .unwrap_or(std::time::Duration::MAX)
+        });
+        Self {
+            interval,
+            next: tokio::time::Instant::now(),
+        }
+    }
+
+    /// Wait until the next batch is allowed. Call this before starting the timer
+    pub async fn wait(&mut self) {
+        let Some(interval) = self.interval else {
+            return;
+        };
+        let now = tokio::time::Instant::now();
+        // Do not try to catch up after a slow response
+        if self.next < now {
+            self.next = now;
+        }
+        let deadline = self.next;
+        self.next = self.next.checked_add(interval).unwrap_or(now);
+        tokio::time::sleep_until(deadline).await;
+    }
+}
+
 pub fn set_randomize_keys(random: bool) {
     RANDOMIZE_KEYS.store(random, Ordering::Relaxed);
 }

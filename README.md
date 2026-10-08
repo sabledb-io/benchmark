@@ -13,16 +13,31 @@ Options:
   -h, --host <HOST>                  Host address [default: 127.0.0.1]
   -p, --port <PORT>                  Host port [default: 6379]
   -t, --test <TEST>                  test suits to run. Possible values are:
-                                     "set", "get", "lpush", "lpop", "incr", "rpop", "rpush", "ping", "hset", "setget", "vecdb_ingest".
+                                     "set", "get", "lpush", "lpop", "incr", "rpop", "rpush", "ping", "hset", "setget", "vecdb_ingest" and "ft.search".
                                      Note that when the test is "setget", you can control the ratio by passing: "--setget-ratio" [default: set]
   -d, --data-size <DATA_SIZE>        Payload data size [default: 256]
+      --dataset <DATASET>            Use values from a pre-prepared dataset instead of random payloads. Each line in the file is one value,
+                                     and a random line is picked for every command. Pass a file path, or a dataset name that is searched in
+                                     "--dataset-dir" (for example: "taxi-trips" matches "taxi-trips.json.gz"). Gzip files are supported.
+                                     When set, "--data-size" is ignored. Used by: "set", "setget", "lpush", "rpush" and "hset".
+      --dataset-dir <DATASET_DIR>    Directory to search for "--dataset" names. If not set, use the "SB_DATASET_DIR" environment variable,
+                                     or "./dataset" if it exists, or the current directory.
+      --list-datasets                Print value size statistics for every dataset in "--dataset-dir" and exit.
   -k, --key-size <KEY_SIZE>          Key size, in bytes. If not provided, the key size is calculated based on the requested key range.
                                      For example, if no "key_size" is provided and the "key_range" is 100,000, the key size will be 6
       --dim <DIM>                    When running vector DB ingestion ("-t vecdb_ingest") test, pass here the vector dimension size. [default: 128]
+      --knn <KNN>                    KNN parameter to pass to the `FT.SEARCH` command. [default: 10]
       --vecdb-index <VECDB_INDEX>    When testing "vecdb_ingest", use this to pass the index name + the prefix as a comma separated strings [default: my_index,my_prefix]
+      --vec-seed <VEC_SEED>          When loading vectors into the database, we use a global counter to generate the vector values. By default this
+                                     seed is set to `0`. Use this to change it. With this, a user may generate unique vectors per execution. Default value: 0 [default: 0]
   -r, --key-range <KEY_RANGE>        Number of unique keys in the benchmark [default: 1000000]
+      --limit-rps <LIMIT_RPS>        Upper limit on the total requests per second, shared by all connections.
+                                     If not set, requests are sent as fast as possible.
+      --touch-keys <TOUCH_KEYS>      Read commands (e.g. "get") touch only this percentage of the key space (1-100).
+                                     For example, if the key range is 1,000,000 and the value is 30, only the first 300,000 keys are read.
+                                     Write commands are not affected.
   -n, --num-requests <NUM_REQUESTS>  Total number of requests [default: 1000000]
-  -l, --log-level <LOG_LEVEL>        Log level
+  -l, --log-level <LOG_LEVEL>        Log level [default: error]
       --tls                          Use TLS handshake with SableDB / Valkey
       --ssl                          Same as "--tls"
   -P, --pipeline <PIPELINE>          Pipeline [default: 1]
@@ -33,6 +48,8 @@ Options:
   -s, --preset <PRESET>              Use preset command line. If set, "sb" will search for the preset name
                                      in the configuration file "$HOME/.sb.ini" with that exact name and use the command line
                                      set there.
+      --cluster                      Use cluster enabled client.
+      --json                         If set, the benchmark will dump a JSON report to stdout.
 ```
 
 ## Using a dataset for values
@@ -78,6 +95,9 @@ An example for using the preset configuration:
 
 [setget-random]
 --threads 4 -c 512 -d 64 -n 5000000 -r 5000000 -t setget -z
+
+[get-hot-keys]
+--threads 4 -c 512 -n 5000000 -r 5000000 -t get --touch-keys 10 --limit-rps 50000
 ```
 
 * You can now use `sb` using the following commands:
