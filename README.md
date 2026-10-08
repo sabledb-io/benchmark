@@ -22,6 +22,7 @@ Options:
                                      When set, "--data-size" is ignored. Used by: "set", "setget", "lpush", "rpush" and "hset".
       --dataset-dir <DATASET_DIR>    Directory to search for "--dataset" names. If not set, use the "SB_DATASET_DIR" environment variable,
                                      or "./dataset" if it exists, or the current directory.
+      --list-presets                 Print the presets found in "$HOME/.sb.ini" and exit.
       --list-datasets                Print value size statistics for every dataset in "--dataset-dir" and exit.
   -k, --key-size <KEY_SIZE>          Key size, in bytes. If not provided, the key size is calculated based on the requested key range.
                                      For example, if no "key_size" is provided and the "key_range" is 100,000, the key size will be 6
@@ -84,22 +85,23 @@ argument...
 An example for using the preset configuration:
 
 * Create the configuration file `$HOME/.sb.ini`
-* Place the below content into the file and save it:
+* Place the below content into the file and save it. Each section is a preset name, and the `command` key holds the command line:
 
 ```
 [fill-database]
---threads 10 -c 512 --pipeline 5 -d 64 -n 5000000 -r 5000000 -t set
+command = --threads 10 -c 512 --pipeline 5 -d 64 -n 5000000 -r 5000000 -t set
 
 [setget-seq]
---threads 4 -c 512 -d 64 -n 5000000 -r 5000000 -t setget
+command = --threads 4 -c 512 -d 64 -n 5000000 -r 5000000 -t setget
 
 [setget-random]
---threads 4 -c 512 -d 64 -n 5000000 -r 5000000 -t setget -z
+command = --threads 4 -c 512 -d 64 -n 5000000 -r 5000000 -t setget -z
 
 [get-hot-keys]
---threads 4 -c 512 -n 5000000 -r 5000000 -t get --touch-keys 10 --limit-rps 50000
+command = --threads 4 -c 512 -n 5000000 -r 5000000 -t get --touch-keys 10 --limit-rps 50000
 ```
 
+* Run `sb --list-presets` to see the available presets and their commands.
 * You can now use `sb` using the following commands:
 
 to fill the database:
