@@ -7,6 +7,7 @@
 use bytes::Bytes;
 use flate2::read::MultiGzDecoder;
 use rand::RngExt;
+use serde::Serialize;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -94,7 +95,7 @@ impl Dataset {
 }
 
 /// Value size statistics, in bytes
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct SizeStats {
     pub count: usize,
     pub total: usize,
@@ -104,6 +105,21 @@ pub struct SizeStats {
     pub p90: usize,
     pub p99: usize,
     pub max: usize,
+}
+
+impl SizeStats {
+    /// A one-line, human-readable payload-size distribution, for example:
+    /// `[avg: 456B, p50: 456B, p90: 460B, p99: 461B, max: 461B]`
+    pub fn human_summary(&self) -> String {
+        format!(
+            "[avg: {}, p50: {}, p90: {}, p99: {}, max: {}]",
+            human_size(self.avg),
+            human_size(self.p50),
+            human_size(self.p90),
+            human_size(self.p99),
+            human_size(self.max),
+        )
+    }
 }
 
 impl Dataset {
@@ -193,7 +209,7 @@ pub fn print_datasets(dir: &Path) -> Result<(), String> {
 }
 
 /// Format a byte count, for example: 512B, 3.0KB, 1.5MB
-fn human_size(bytes: usize) -> String {
+pub fn human_size(bytes: usize) -> String {
     const KB: f64 = 1024.0;
     let b = bytes as f64;
     if b < KB {
@@ -288,6 +304,24 @@ mod tests {
         assert_eq!(st.p99, 99);
         assert_eq!(st.max, 100);
         assert_eq!(st.avg, 5050 / 100);
+    }
+
+    #[test]
+    fn test_size_stats_human_summary() {
+        let st = SizeStats {
+            count: 3,
+            total: 3072,
+            avg: 1024,
+            min: 440,
+            p50: 456,
+            p90: 2048,
+            p99: 1572864,
+            max: 1572864,
+        };
+        assert_eq!(
+            st.human_summary(),
+            "[avg: 1.0KB, p50: 456B, p90: 2.0KB, p99: 1.5MB, max: 1.5MB]"
+        );
     }
 
     #[test]
