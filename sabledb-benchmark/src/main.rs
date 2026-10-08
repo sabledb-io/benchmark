@@ -73,6 +73,7 @@ async fn thread_main(opts: Options) -> Result<(), Box<dyn std::error::Error>> {
     // merge this worker thread's local latency histogram into the global
     // aggregate before the thread exits
     stats::merge_thread_latency();
+    stats::merge_thread_sizes();
 
     // remove this thread from the pool
     stats::decr_threads_running();
@@ -175,11 +176,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(ds) => {
                 if !stats::is_json_output() {
                     println!(
-                        "{}: {} ({} values, average size: {} bytes)",
+                        "{}: {} ({} values)",
                         "Using dataset".bold(),
                         ds.path().display().to_string().italic(),
                         ds.len().to_formatted_string(&Locale::en),
-                        ds.avg_value_size()
                     );
                 }
             }
@@ -270,10 +270,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         println!("    Key size  : {} Bytes", args.get_key_size());
-        if args.dataset.is_some() {
-            println!("    Value size: {} Bytes (average)", args.get_value_size());
-        } else {
-            println!("    Value size: {} Bytes", args.data_size);
+        // Values actually written during the run (set/push/hset/setget-set).
+        // Printed only when at least one value was sent, so read-only tests
+        // (get/pop/ping/incr/ft.search) do not show a payload line.
+        if let Some(st) = stats::sent_size_stats() {
+            println!("    Value size (sent)    : {}", st.human_summary());
+        }
+        // Values read back from the server (get/pop/setget-get).
+        if let Some(st) = stats::received_size_stats() {
+            println!("    Value size (received): {}", st.human_summary());
         }
         stats::print_latency();
     } else {

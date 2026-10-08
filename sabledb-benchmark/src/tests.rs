@@ -78,6 +78,17 @@ fn expect_string_or_null(response: &ValkeyObject) -> Result<bool, BenchmarkError
     }
 }
 
+/// Byte length of a string value response, to be recorded as a received-size
+/// sample. An empty string is a real hit and yields `Some(0)`; a miss
+/// (`NullString`) or any non-string response yields `None` and must be skipped.
+#[inline]
+fn response_value_size(response: &ValkeyObject) -> Option<usize> {
+    match response {
+        ValkeyObject::Str(value) => Some(value.len()),
+        _ => None,
+    }
+}
+
 /// Expect that `response` is either a Integer or Null. If it is an Integer, return `true`, otherwise `false`.
 /// If it is neither, return `Err(BenchmarkError)`
 #[inline]
@@ -140,7 +151,9 @@ pub async fn run_set(
         let start_id = bench_utils::reserve_sequential_ids(opts.pipeline);
         for i in 0..opts.pipeline {
             bench_utils::write_key(&mut key, key_size, key_range, start_id, i);
-            client.build_set_command(&mut buffer, &key, values.next_value());
+            let value = values.next_value();
+            client.build_set_command(&mut buffer, &key, value);
+            stats::record_sent_size(value.len() as u64);
         }
 
         let sw = StopWatch::default();
@@ -185,6 +198,9 @@ pub async fn run_get(
         for object in &objects {
             if expect_string_or_null(object)? {
                 hits += 1;
+            }
+            if let Some(size) = response_value_size(object) {
+                stats::record_received_size(size as u64);
             }
         }
         stats::incr_hits(hits);
@@ -282,7 +298,9 @@ pub async fn run_push(
         let start_id = bench_utils::reserve_sequential_ids(opts.pipeline);
         for i in 0..opts.pipeline {
             bench_utils::write_key(&mut key, key_size, key_range, start_id, i);
-            client.build_push_command(&mut buffer, &key, values.next_value(), right);
+            let value = values.next_value();
+            client.build_push_command(&mut buffer, &key, value, right);
+            stats::record_sent_size(value.len() as u64);
         }
 
         let sw = StopWatch::default();
@@ -329,6 +347,9 @@ pub async fn run_pop(
             if expect_string_or_null(object)? {
                 hits += 1;
             }
+            if let Some(size) = response_value_size(object) {
+                stats::record_received_size(size as u64);
+            }
         }
         stats::incr_hits(hits);
 
@@ -363,7 +384,9 @@ pub async fn run_hset(
             field.clear();
             field.extend_from_slice(b"field_");
             sbcommonlib::append_u64_decimal(&mut field, seq);
-            client.build_hset_command(&mut buffer, &key, &field, values.next_value());
+            let value = values.next_value();
+            client.build_hset_command(&mut buffer, &key, &field, value);
+            stats::record_sent_size(value.len() as u64);
         }
 
         let sw = StopWatch::default();
@@ -485,4 +508,27 @@ pub async fn run_ftsearch(
         requests_sent += opts.pipeline;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod unit_tests {
+    use super::*;
+
+    #[test]
+    fn test_response_value_size() {
+        // A non-empty string returns its byte length.
+        assert_eq!(
+            response_value_size(&ValkeyObject::Str(BytesMut::from(&b"hello"[..]))),
+            Some(5)
+        );
+        // An empty string is a real hit of size zero.
+        assert_eq!(
+            response_value_size(&ValkeyObject::Str(BytesMut::new())),
+            Some(0)
+        );
+        // A miss (null) is skipped.
+        assert_eq!(response_value_size(&ValkeyObject::NullString), None);
+        // Any other response type is not a value and is skipped.
+        assert_eq!(response_value_size(&ValkeyObject::Integer(7)), None);
+    }
 }
