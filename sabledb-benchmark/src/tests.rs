@@ -131,13 +131,16 @@ pub async fn run_set(
     let mut requests_sent = 0;
     let key_size = opts.get_key_size();
     let key_range = opts.key_range;
-    let payload = bench_utils::generate_payload(opts.data_size);
+    let values = bench_utils::ValueSource::new(opts.data_size);
     let client = ValkeyClient::default();
+    let mut buffer = BytesMut::with_capacity(1024);
+    let mut key = BytesMut::with_capacity(key_size);
     while requests_sent < requests_to_send {
-        let mut buffer = bytes::BytesMut::with_capacity(1024);
-        for _ in 0..opts.pipeline {
-            let key = bench_utils::generate_key(key_size, key_range);
-            client.build_set_command(&mut buffer, &key, &payload);
+        buffer.clear();
+        let start_id = bench_utils::reserve_sequential_ids(opts.pipeline);
+        for i in 0..opts.pipeline {
+            bench_utils::write_key(&mut key, key_size, key_range, start_id, i);
+            client.build_set_command(&mut buffer, &key, values.next_value());
         }
 
         let sw = StopWatch::default();
@@ -164,10 +167,13 @@ pub async fn run_get(
     let key_size = opts.get_key_size();
     let key_range = opts.key_range;
     let client = ValkeyClient::default();
+    let mut buffer = BytesMut::with_capacity(1024);
+    let mut key = BytesMut::with_capacity(key_size);
     while requests_sent < requests_to_send {
-        let mut buffer = bytes::BytesMut::with_capacity(1024);
-        for _ in 0..opts.pipeline {
-            let key = bench_utils::generate_key(key_size, key_range);
+        buffer.clear();
+        let start_id = bench_utils::reserve_sequential_ids(opts.pipeline);
+        for i in 0..opts.pipeline {
+            bench_utils::write_key(&mut key, key_size, key_range, start_id, i);
             client.build_get_command(&mut buffer, &key);
         }
 
@@ -175,11 +181,13 @@ pub async fn run_get(
         let objects = conn.send_recv_multi(&buffer, opts.pipeline).await?;
 
         // validate each response
+        let mut hits = 0usize;
         for object in &objects {
             if expect_string_or_null(object)? {
-                stats::incr_hits();
+                hits += 1;
             }
         }
+        stats::incr_hits(hits);
 
         stats::incr_requests(opts.pipeline);
         stats::record_latency(sw.elapsed_micros()?.try_into().unwrap_or(u64::MAX));
@@ -196,8 +204,9 @@ pub async fn run_ping(
     let requests_to_send = opts.client_requests();
     let mut requests_sent = 0;
     let client = ValkeyClient::default();
+    let mut buffer = BytesMut::with_capacity(1024);
     while requests_sent < requests_to_send {
-        let mut buffer = bytes::BytesMut::with_capacity(1024);
+        buffer.clear();
         for _ in 0..opts.pipeline {
             client.build_ping_command(&mut buffer);
         }
@@ -226,10 +235,13 @@ pub async fn run_incr(
     let key_size = opts.get_key_size();
     let key_range = opts.key_range;
     let client = ValkeyClient::default();
+    let mut buffer = BytesMut::with_capacity(1024);
+    let mut key = BytesMut::with_capacity(key_size);
     while requests_sent < requests_to_send {
-        let mut buffer = bytes::BytesMut::with_capacity(1024);
-        for _ in 0..opts.pipeline {
-            let key = bench_utils::generate_key(key_size, key_range);
+        buffer.clear();
+        let start_id = bench_utils::reserve_sequential_ids(opts.pipeline);
+        for i in 0..opts.pipeline {
+            bench_utils::write_key(&mut key, key_size, key_range, start_id, i);
             client.build_incr_command(&mut buffer, &key, 1);
         }
 
@@ -237,10 +249,12 @@ pub async fn run_incr(
         let objects = conn.send_recv_multi(&buffer, opts.pipeline).await?;
 
         // validate each response
+        let mut hits = 0usize;
         for object in &objects {
             expect_integer(object)?;
-            stats::incr_hits();
+            hits += 1;
         }
+        stats::incr_hits(hits);
 
         stats::incr_requests(opts.pipeline);
         stats::record_latency(sw.elapsed_micros()?.try_into().unwrap_or(u64::MAX));
@@ -259,13 +273,16 @@ pub async fn run_push(
     let mut requests_sent = 0;
     let key_size = opts.get_key_size();
     let key_range = opts.key_range;
-    let payload = bench_utils::generate_payload(opts.data_size);
+    let values = bench_utils::ValueSource::new(opts.data_size);
     let client = ValkeyClient::default();
+    let mut buffer = BytesMut::with_capacity(1024);
+    let mut key = BytesMut::with_capacity(key_size);
     while requests_sent < requests_to_send {
-        let mut buffer = bytes::BytesMut::with_capacity(1024);
-        for _ in 0..opts.pipeline {
-            let key = bench_utils::generate_key(key_size, key_range);
-            client.build_push_command(&mut buffer, &key, &payload, right);
+        buffer.clear();
+        let start_id = bench_utils::reserve_sequential_ids(opts.pipeline);
+        for i in 0..opts.pipeline {
+            bench_utils::write_key(&mut key, key_size, key_range, start_id, i);
+            client.build_push_command(&mut buffer, &key, values.next_value(), right);
         }
 
         let sw = StopWatch::default();
@@ -293,10 +310,13 @@ pub async fn run_pop(
     let key_size = opts.get_key_size();
     let key_range = opts.key_range;
     let client = ValkeyClient::default();
+    let mut buffer = BytesMut::with_capacity(1024);
+    let mut key = BytesMut::with_capacity(key_size);
     while requests_sent < requests_to_send {
-        let mut buffer = bytes::BytesMut::with_capacity(1024);
-        for _ in 0..opts.pipeline {
-            let key = bench_utils::generate_key(key_size, key_range);
+        buffer.clear();
+        let start_id = bench_utils::reserve_sequential_ids(opts.pipeline);
+        for i in 0..opts.pipeline {
+            bench_utils::write_key(&mut key, key_size, key_range, start_id, i);
             client.build_pop_command(&mut buffer, &key, right);
         }
 
@@ -304,11 +324,13 @@ pub async fn run_pop(
         let objects = conn.send_recv_multi(&buffer, opts.pipeline).await?;
 
         // validate each response
+        let mut hits = 0usize;
         for object in &objects {
             if expect_string_or_null(object)? {
-                stats::incr_hits();
+                hits += 1;
             }
         }
+        stats::incr_hits(hits);
 
         stats::incr_requests(opts.pipeline);
         stats::record_latency(sw.elapsed_micros()?.try_into().unwrap_or(u64::MAX));
@@ -327,26 +349,34 @@ pub async fn run_hset(
     let key_size = opts.get_key_size();
     let key_range = opts.key_range;
     let client = ValkeyClient::default();
-    let payload = bench_utils::generate_payload(opts.data_size);
-    let mut seq = 0usize;
+    let values = bench_utils::ValueSource::new(opts.data_size);
+    let mut seq = 0u64;
+    let mut buffer = BytesMut::with_capacity(1024);
+    let mut key = BytesMut::with_capacity(key_size);
+    let mut field = BytesMut::with_capacity(32);
     while requests_sent < requests_to_send {
-        let mut buffer = bytes::BytesMut::with_capacity(1024);
-        for _ in 0..opts.pipeline {
+        buffer.clear();
+        let start_id = bench_utils::reserve_sequential_ids(opts.pipeline);
+        for i in 0..opts.pipeline {
             seq += 1;
-            let key = bench_utils::generate_key(key_size, key_range);
-            let field = bytes::BytesMut::from(format!("field_{}", seq).as_str());
-            client.build_hset_command(&mut buffer, &key, &field, &payload);
+            bench_utils::write_key(&mut key, key_size, key_range, start_id, i);
+            field.clear();
+            field.extend_from_slice(b"field_");
+            sbcommonlib::append_u64_decimal(&mut field, seq);
+            client.build_hset_command(&mut buffer, &key, &field, values.next_value());
         }
 
         let sw = StopWatch::default();
         let objects = conn.send_recv_multi(&buffer, opts.pipeline).await?;
 
         // validate each response
+        let mut hits = 0usize;
         for object in &objects {
             if expect_integer_or_null(object)? {
-                stats::incr_hits();
+                hits += 1;
             }
         }
+        stats::incr_hits(hits);
 
         stats::incr_requests(opts.pipeline);
         stats::record_latency(sw.elapsed_micros()?.try_into().unwrap_or(u64::MAX));
@@ -401,11 +431,13 @@ pub async fn run_vecdb_ingest(
         let objects = conn.send_recv_multi(&buffer, opts.pipeline).await?;
 
         // validate each response
+        let mut hits = 0usize;
         for object in &objects {
             if expect_integer_or_null(object)? {
-                stats::incr_hits();
+                hits += 1;
             }
         }
+        stats::incr_hits(hits);
 
         stats::incr_requests(opts.pipeline);
         stats::record_latency(sw.elapsed_micros()?.try_into().unwrap_or(u64::MAX));
@@ -439,12 +471,14 @@ pub async fn run_ftsearch(
         let objects = conn.send_recv_multi(&buffer, opts.pipeline).await?;
 
         // validate each response
+        let mut hits = 0usize;
         for object in &objects {
             // we expect an array of KNN entries
             if expect_array_of_size(object, opts.knn.saturating_mul(2).saturating_add(1))? {
-                stats::incr_hits();
+                hits += 1;
             }
         }
+        stats::incr_hits(hits);
 
         stats::incr_requests(opts.pipeline);
         stats::record_latency(sw.elapsed_micros()?.try_into().unwrap_or(u64::MAX));

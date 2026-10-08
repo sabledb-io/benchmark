@@ -1,4 +1,5 @@
 mod bench_utils;
+mod dataset;
 mod sb_options;
 mod stats;
 mod tests;
@@ -69,6 +70,10 @@ async fn thread_main(opts: Options) -> Result<(), Box<dyn std::error::Error>> {
     // wait for the tasks to complete
     local.await;
 
+    // merge this worker thread's local latency histogram into the global
+    // aggregate before the thread exits
+    stats::merge_thread_latency();
+
     // remove this thread from the pool
     stats::decr_threads_running();
     Ok(())
@@ -124,6 +129,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (mut args, cmdline) = Options::initialise();
     args.finalise();
 
+    if args.list_datasets {
+        let dir = args.get_dataset_dir();
+        if let Err(e) = dataset::print_datasets(&dir) {
+            eprintln!("{}: {}", "error".red().bold(), e);
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
+
     stats::set_use_json_output(args.is_json_output());
     tests::set_vec_index_generator_seed(args.vec_seed);
 
@@ -156,6 +170,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    if let Some(name) = &args.dataset {
+        match dataset::init(name, &args.get_dataset_dir()) {
+            Ok(ds) => {
+                if !stats::is_json_output() {
+                    println!(
+                        "{}: {} ({} values, average size: {} bytes)",
+                        "Using dataset".bold(),
+                        ds.path().display().to_string().italic(),
+                        ds.len().to_formatted_string(&Locale::en),
+                        ds.avg_value_size()
+                    );
+                }
+            }
+            Err(e) => {
+                eprintln!("{}: {}", "error".red().bold(), e);
+                std::process::exit(1);
+            }
+        }
+    }
+
     // panic! should go to the log
     std::panic::set_hook(Box::new(|e| {
         let errmsg = format!("{}", e);
@@ -174,7 +208,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::debug!("Conn per thread: {}", args.tasks_per_thread());
     tracing::debug!("Key space: {}", args.key_range);
     tracing::debug!("Key size: {}", args.get_key_size());
-    tracing::debug!("Data size: {}", args.data_size);
+    tracing::debug!("Data size: {}", args.get_value_size());
 
     stats::finalise_progress_setup(args.num_requests as u64);
 
@@ -236,7 +270,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         println!("    Key size  : {} Bytes", args.get_key_size());
-        println!("    Value size: {} Bytes", args.data_size);
+        if args.dataset.is_some() {
+            println!("    Value size: {} Bytes (average)", args.get_value_size());
+        } else {
+            println!("    Value size: {} Bytes", args.data_size);
+        }
         stats::print_latency();
     } else {
         let stats = Stats::collect(&args, test_duration_ms);

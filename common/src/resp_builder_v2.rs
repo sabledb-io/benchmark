@@ -29,11 +29,10 @@ impl RespBuilderV2 {
     }
 
     fn add_bulk_string_internal(&self, buffer: &mut BytesMut, content: &[u8]) {
-        let str_len = format!("{}", content.len());
-        // extend the buffer as needed
-        buffer.reserve(DOLLAR_LEN + str_len.len() + content.len() + (2 * CRLF_LEN));
+        // extend the buffer as needed (upper bound on the decimal length prefix)
+        buffer.reserve(DOLLAR_LEN + crate::MAX_U64_DECIMAL_DIGITS + content.len() + (2 * CRLF_LEN));
         self.append_str(buffer, DOLLAR);
-        buffer.extend_from_slice(str_len.as_bytes());
+        crate::append_u64_decimal(buffer, content.len() as u64);
         self.append_str(buffer, CRLF);
         self.append_bytes(buffer, content);
         self.append_str(buffer, CRLF);
@@ -141,8 +140,18 @@ impl RespBuilderV2 {
     /// Append array len to the buffer
     /// NOTE: this function does not clear the buffer
     pub fn add_array_len(&self, buffer: &mut BytesMut, num: usize) {
-        let s = format!("*{}\r\n", num);
-        buffer.extend_from_slice(s.as_bytes());
+        self.append_str(buffer, "*");
+        crate::append_u64_decimal(buffer, num as u64);
+        self.append_str(buffer, CRLF);
+    }
+
+    /// Append a bulk string whose content is the decimal representation of `value`.
+    /// Avoids allocating a temporary `String` for the integer argument.
+    /// NOTE: this function does not clear the buffer
+    pub fn add_bulk_u64(&self, buffer: &mut BytesMut, value: u64) {
+        let mut tmp = [0u8; crate::MAX_U64_DECIMAL_DIGITS];
+        let digits = crate::encode_u64_decimal(value, &mut tmp);
+        self.add_bulk_string_internal(buffer, digits);
     }
 
     /// Append bulk string to the buffer.
@@ -198,5 +207,81 @@ impl RespBuilderV2 {
     /// NOTE: this function does not clear the buffer
     pub fn add_null_array(&self, buffer: &mut BytesMut) {
         buffer.extend_from_slice(NULL_ARRAY.as_bytes());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{encode_u64_decimal, MAX_U64_DECIMAL_DIGITS};
+
+    #[test]
+    fn test_encode_u64_decimal() {
+        let mut tmp = [0u8; MAX_U64_DECIMAL_DIGITS];
+        assert_eq!(encode_u64_decimal(0, &mut tmp), b"0");
+        assert_eq!(encode_u64_decimal(7, &mut tmp), b"7");
+        assert_eq!(encode_u64_decimal(1024, &mut tmp), b"1024");
+        assert_eq!(
+            encode_u64_decimal(u64::MAX, &mut tmp),
+            b"18446744073709551615"
+        );
+    }
+
+    #[test]
+    fn test_add_array_len() {
+        let builder = RespBuilderV2::default();
+        let mut buffer = BytesMut::new();
+        builder.add_array_len(&mut buffer, 3);
+        assert_eq!(&buffer[..], b"*3\r\n");
+
+        buffer.clear();
+        builder.add_array_len(&mut buffer, 1234567);
+        assert_eq!(&buffer[..], b"*1234567\r\n");
+
+        buffer.clear();
+        builder.add_array_len(&mut buffer, 0);
+        assert_eq!(&buffer[..], b"*0\r\n");
+    }
+
+    #[test]
+    fn test_add_bulk_string_length_prefix() {
+        let builder = RespBuilderV2::default();
+        let mut buffer = BytesMut::new();
+        builder.add_bulk_string(&mut buffer, b"hello");
+        assert_eq!(&buffer[..], b"$5\r\nhello\r\n");
+
+        buffer.clear();
+        builder.add_bulk_string(&mut buffer, b"");
+        assert_eq!(&buffer[..], b"$0\r\n\r\n");
+    }
+
+    #[test]
+    fn test_add_bulk_u64() {
+        let builder = RespBuilderV2::default();
+        let mut buffer = BytesMut::new();
+        builder.add_bulk_u64(&mut buffer, 0);
+        assert_eq!(&buffer[..], b"$1\r\n0\r\n");
+
+        buffer.clear();
+        builder.add_bulk_u64(&mut buffer, 42);
+        assert_eq!(&buffer[..], b"$2\r\n42\r\n");
+
+        buffer.clear();
+        builder.add_bulk_u64(&mut buffer, u64::MAX);
+        assert_eq!(&buffer[..], b"$20\r\n18446744073709551615\r\n");
+    }
+
+    #[test]
+    fn test_full_incr_command_shape() {
+        let builder = RespBuilderV2::default();
+        let mut buffer = BytesMut::new();
+        builder.add_array_len(&mut buffer, 3);
+        builder.add_bulk_string(&mut buffer, b"incrby");
+        builder.add_bulk_string(&mut buffer, b"000042");
+        builder.add_bulk_u64(&mut buffer, 1);
+        assert_eq!(
+            &buffer[..],
+            b"*3\r\n$6\r\nincrby\r\n$6\r\n000042\r\n$1\r\n1\r\n"
+        );
     }
 }

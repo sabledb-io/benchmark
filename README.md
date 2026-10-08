@@ -35,6 +35,29 @@ Options:
                                      set there.
 ```
 
+## Using a dataset for values
+
+Use `--dataset` to send real values instead of random payloads. Each line in the file is one value,
+and `sb` picks a random line for every command. Gzip files are supported.
+
+```bash
+sb -t set --dataset taxi-trips        # matches taxi-trips, taxi-trips.gz, taxi-trips.json.gz, ...
+sb -t set --dataset /path/to/file.json.gz
+sb --list-datasets                    # print value size stats (avg, p50, p90, p99, ...) and exit
+```
+
+Datasets are searched in `--dataset-dir`, then `$SB_DATASET_DIR`, then `./dataset` (if it exists), then the
+current directory. This repository includes these datasets in `dataset/`:
+
+| Name | Values | Avg | P50 | P99 |
+|---|---|---|---|---|
+| `github-events-50k` | 3,622 | 46.2KB | 45.6KB | 52.2KB |
+| `github-events` | 10,000 | 2.0KB | 1.2KB | 16.9KB |
+| `reddit-comments` | 10,000 | 530B | 440B | 1.7KB |
+| `taxi-trips` | 10,000 | 456B | 456B | 461B |
+
+When `--dataset` is set, `--data-size` is ignored. The dataset is used by `set`, `setget`, `lpush`, `rpush` and `hset`.
+
 ## Preset configurations
 
 `sb` supports "preset" tests. With this feature, a user can store multiple test execution command lines

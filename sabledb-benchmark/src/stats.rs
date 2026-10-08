@@ -3,6 +3,7 @@ use hdrhistogram::Histogram;
 use indicatif::ProgressBar;
 use lazy_static::lazy_static;
 use serde::Serialize;
+use std::cell::RefCell;
 use std::sync::{
     atomic::{AtomicBool, AtomicUsize, Ordering},
     Mutex,
@@ -20,6 +21,14 @@ lazy_static! {
         = Mutex::new(Histogram::<u64>::new_with_bounds(1, 600000000, 2).unwrap());
     static ref PROGRESS: ProgressBar = ProgressBar::new(10);
     static ref JSON_OUTPUT: AtomicBool = AtomicBool::new(false);
+}
+
+thread_local! {
+    /// Per-OS-thread latency histogram. Latencies are recorded here lock-free
+    /// during the benchmark and merged into the global [`HIST`] exactly once per
+    /// worker thread (see [`merge_thread_latency`]) before the thread exits.
+    static LOCAL_HIST: RefCell<Histogram<u64>> =
+        RefCell::new(Histogram::<u64>::new_with_bounds(1, 600000000, 2).unwrap());
 }
 
 #[derive(Serialize, Debug, Default)]
@@ -56,7 +65,7 @@ impl Stats {
         let total_requests = requests_processed();
         let total_hits = total_hits();
         let key_size = opts.get_key_size();
-        let value_size = opts.data_size;
+        let value_size = opts.get_value_size();
         let rps = ((total_requests as f64 / test_duration_millis) * 1000.0) as usize;
         let pipeline = opts.pipeline;
         let mut latency_ms = Latency::default();
@@ -105,9 +114,11 @@ pub fn incr_requests(count: usize) {
     }
 }
 
-/// Increment the total number of requests by 1
-pub fn incr_hits() {
-    HITS.fetch_add(1, Ordering::Relaxed);
+/// Increment the total number of hits by `count`
+pub fn incr_hits(count: usize) {
+    if count != 0 {
+        HITS.fetch_add(count, Ordering::Relaxed);
+    }
 }
 
 /// Return the total requests processed
@@ -131,10 +142,24 @@ pub fn decr_threads_running() {
 }
 
 pub fn record_latency(val: u64) {
-    let mut guard = HIST.lock().expect("lock");
-    if let Err(e) = guard.record(val) {
-        tracing::error!("Failed to record histogram. {:?}", e);
-    }
+    LOCAL_HIST.with(|h| {
+        if let Err(e) = h.borrow_mut().record(val) {
+            tracing::error!("Failed to record histogram. {:?}", e);
+        }
+    });
+}
+
+/// Merge the calling OS thread's local latency histogram into the global
+/// aggregate. Call this exactly once per worker thread after its `LocalSet`
+/// has finished and before the thread exits.
+pub fn merge_thread_latency() {
+    LOCAL_HIST.with(|local| {
+        let local = local.borrow();
+        let mut guard = HIST.lock().expect("lock");
+        if let Err(e) = guard.add(&*local) {
+            tracing::error!("Failed to merge thread histogram. {:?}", e);
+        }
+    });
 }
 
 pub fn print_latency() {

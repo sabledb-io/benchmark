@@ -53,6 +53,22 @@ pub struct Options {
     #[arg(short, long, default_value = "256")]
     pub data_size: usize,
 
+    /// Use values from a pre-prepared dataset instead of random payloads. Each line in the file is one value,
+    /// and a random line is picked for every command. Pass a file path, or a dataset name that is searched in
+    /// "--dataset-dir" (for example: "taxi-trips" matches "taxi-trips.json.gz"). Gzip files are supported.
+    /// When set, "--data-size" is ignored. Used by: "set", "setget", "lpush", "rpush" and "hset".
+    #[arg(long, verbatim_doc_comment)]
+    pub dataset: Option<String>,
+
+    /// Directory to search for "--dataset" names. If not set, use the "SB_DATASET_DIR" environment variable,
+    /// or "./dataset" if it exists, or the current directory.
+    #[arg(long, verbatim_doc_comment)]
+    pub dataset_dir: Option<String>,
+
+    /// Print value size statistics for every dataset in "--dataset-dir" and exit.
+    #[arg(long, verbatim_doc_comment, default_value = "false")]
+    pub list_datasets: bool,
+
     /// Key size, in bytes. If not provided, the key size is calculated based on the requested key range.
     /// For example, if no "key_size" is provided and the "key_range" is 100,000, the key size will be 6
     #[arg(short, long, verbatim_doc_comment)]
@@ -176,6 +192,30 @@ impl Options {
     /// Return true if should be using TLS connection
     pub fn tls_enabled(&self) -> bool {
         self.ssl || self.tls
+    }
+
+    /// Return the directory to search for dataset names
+    pub fn get_dataset_dir(&self) -> std::path::PathBuf {
+        self.dataset_dir
+            .clone()
+            .or_else(|| std::env::var(crate::dataset::DATASET_DIR_ENV).ok())
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| {
+                let local = std::path::PathBuf::from(crate::dataset::DEFAULT_DATASET_DIR);
+                if local.is_dir() {
+                    local
+                } else {
+                    std::path::PathBuf::from(".")
+                }
+            })
+    }
+
+    /// Return the value size. When using a dataset, this is the average value size
+    pub fn get_value_size(&self) -> usize {
+        match crate::dataset::get() {
+            Some(ds) => ds.avg_value_size(),
+            None => self.data_size,
+        }
     }
 
     /// Return true if output is JSON file
