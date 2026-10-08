@@ -146,7 +146,9 @@ pub async fn run_set(
     let client = ValkeyClient::default();
     let mut buffer = BytesMut::with_capacity(1024);
     let mut key = BytesMut::with_capacity(key_size);
+    let mut limiter = bench_utils::RateLimiter::new(&opts);
     while requests_sent < requests_to_send {
+        limiter.wait().await;
         buffer.clear();
         let start_id = bench_utils::reserve_sequential_ids(opts.pipeline);
         for i in 0..opts.pipeline {
@@ -178,11 +180,13 @@ pub async fn run_get(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut requests_sent = 0;
     let key_size = opts.get_key_size();
-    let key_range = opts.key_range;
+    let key_range = opts.get_read_key_range();
     let client = ValkeyClient::default();
     let mut buffer = BytesMut::with_capacity(1024);
     let mut key = BytesMut::with_capacity(key_size);
+    let mut limiter = bench_utils::RateLimiter::new(&opts);
     while requests_sent < requests_to_send {
+        limiter.wait().await;
         buffer.clear();
         let start_id = bench_utils::reserve_sequential_ids(opts.pipeline);
         for i in 0..opts.pipeline {
@@ -221,7 +225,9 @@ pub async fn run_ping(
     let mut requests_sent = 0;
     let client = ValkeyClient::default();
     let mut buffer = BytesMut::with_capacity(1024);
+    let mut limiter = bench_utils::RateLimiter::new(&opts);
     while requests_sent < requests_to_send {
+        limiter.wait().await;
         buffer.clear();
         for _ in 0..opts.pipeline {
             client.build_ping_command(&mut buffer);
@@ -253,7 +259,9 @@ pub async fn run_incr(
     let client = ValkeyClient::default();
     let mut buffer = BytesMut::with_capacity(1024);
     let mut key = BytesMut::with_capacity(key_size);
+    let mut limiter = bench_utils::RateLimiter::new(&opts);
     while requests_sent < requests_to_send {
+        limiter.wait().await;
         buffer.clear();
         let start_id = bench_utils::reserve_sequential_ids(opts.pipeline);
         for i in 0..opts.pipeline {
@@ -293,7 +301,9 @@ pub async fn run_push(
     let client = ValkeyClient::default();
     let mut buffer = BytesMut::with_capacity(1024);
     let mut key = BytesMut::with_capacity(key_size);
+    let mut limiter = bench_utils::RateLimiter::new(&opts);
     while requests_sent < requests_to_send {
+        limiter.wait().await;
         buffer.clear();
         let start_id = bench_utils::reserve_sequential_ids(opts.pipeline);
         for i in 0..opts.pipeline {
@@ -330,7 +340,9 @@ pub async fn run_pop(
     let client = ValkeyClient::default();
     let mut buffer = BytesMut::with_capacity(1024);
     let mut key = BytesMut::with_capacity(key_size);
+    let mut limiter = bench_utils::RateLimiter::new(&opts);
     while requests_sent < requests_to_send {
+        limiter.wait().await;
         buffer.clear();
         let start_id = bench_utils::reserve_sequential_ids(opts.pipeline);
         for i in 0..opts.pipeline {
@@ -375,7 +387,9 @@ pub async fn run_hset(
     let mut buffer = BytesMut::with_capacity(1024);
     let mut key = BytesMut::with_capacity(key_size);
     let mut field = BytesMut::with_capacity(32);
+    let mut limiter = bench_utils::RateLimiter::new(&opts);
     while requests_sent < requests_to_send {
+        limiter.wait().await;
         buffer.clear();
         let start_id = bench_utils::reserve_sequential_ids(opts.pipeline);
         for i in 0..opts.pipeline {
@@ -437,7 +451,9 @@ pub async fn run_vecdb_ingest(
     expect_ok_or_error_contains(&obj, "already exists")?;
 
     let prefix = options::vecdb_index_prefix();
+    let mut limiter = bench_utils::RateLimiter::new(&opts);
     while requests_sent < requests_to_send {
+        limiter.wait().await;
         let mut commands = Vec::<String>::with_capacity(opts.pipeline);
         for _ in 0..opts.pipeline {
             let next_val = VEC_COUNTER.fetch_add(1, Ordering::Relaxed);
@@ -479,7 +495,9 @@ pub async fn run_ftsearch(
     let client = ValkeyClient::default();
 
     let index_name = options::vecdb_index_name();
+    let mut limiter = bench_utils::RateLimiter::new(&opts);
     while requests_sent < requests_to_send {
+        limiter.wait().await;
         let mut commands = Vec::<String>::with_capacity(opts.pipeline);
         for _ in 0..opts.pipeline {
             let search_me = bench_utils::generate_vector(opts.dim);
