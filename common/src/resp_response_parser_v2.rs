@@ -302,7 +302,6 @@ mod tests {
     ) -> Result<(), CommonError> {
         let response = RespResponseParserV2::parse_response(buffer)?;
         let ResponseParseResult::Ok((consumed, obj)) = response else {
-            assert!(false, "Expected ParseResult::Ok");
             return Err(CommonError::OtherError(
                 "Expected ParseResult::Ok".to_string(),
             ));
@@ -330,7 +329,6 @@ mod tests {
     ) -> Result<(), CommonError> {
         let response = RespResponseParserV2::parse_response(buffer)?;
         let ResponseParseResult::Ok((consumed, obj)) = response else {
-            assert!(false, "Expected ParseResult::Ok");
             return Err(CommonError::OtherError(
                 "Expected ParseResult::Ok".to_string(),
             ));

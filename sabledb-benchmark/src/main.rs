@@ -130,6 +130,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (mut args, cmdline) = Options::initialise();
     args.finalise();
 
+    if args.list_presets {
+        if let Err(e) = Options::print_presets() {
+            eprintln!("{}: {}", "error".red().bold(), e);
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
+
     if args.list_datasets {
         let dir = args.get_dataset_dir();
         if let Err(e) = dataset::print_datasets(&dir) {

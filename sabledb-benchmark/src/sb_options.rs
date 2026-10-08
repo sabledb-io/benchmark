@@ -2,11 +2,9 @@ use clap::Parser;
 use colored::Colorize;
 use ini::Ini;
 use serde::Serialize;
-use std::collections::HashMap;
 use std::sync::RwLock;
 
 lazy_static::lazy_static! {
-    static ref PRESETS: RwLock<HashMap<String, String>> = RwLock::<HashMap<String, String>>::default();
     static ref VECDB_INDEX_NAME: RwLock<String> = RwLock::<String>::new("my_index".into());
     static ref VECDB_INDEX_PREFIX: RwLock<String> = RwLock::<String>::new("my_prefix".into());
 }
@@ -64,6 +62,10 @@ pub struct Options {
     /// or "./dataset" if it exists, or the current directory.
     #[arg(long, verbatim_doc_comment)]
     pub dataset_dir: Option<String>,
+
+    /// Print the presets found in "$HOME/.sb.ini" and exit.
+    #[arg(long, verbatim_doc_comment, default_value = "false")]
+    pub list_presets: bool,
 
     /// Print value size statistics for every dataset in "--dataset-dir" and exit.
     #[arg(long, verbatim_doc_comment, default_value = "false")]
@@ -309,6 +311,54 @@ impl Options {
         }
     }
 
+    /// Split a preset command into arguments. Any whitespace (spaces, tabs, new lines)
+    /// separates arguments, and repeated whitespace is ignored
+    fn split_preset_command(command: &str) -> Vec<String> {
+        command.split_whitespace().map(|s| s.to_string()).collect()
+    }
+
+    /// Read the presets from "$HOME/.sb.ini". Return the file path and the list of
+    /// `(name, command)` in the order they appear in the file
+    fn read_presets() -> Result<(std::path::PathBuf, Vec<(String, String)>), String> {
+        #[cfg(windows)]
+        let home = "USERPROFILE";
+        #[cfg(not(windows))]
+        let home = "HOME";
+        let homedir = std::env::var(home)
+            .map_err(|_| format!("could not locate environment variable {}", home))?;
+
+        let mut filepath = std::path::PathBuf::from(homedir);
+        filepath.push(".sb.ini");
+        let content = std::fs::read_to_string(&filepath)
+            .map_err(|_| format!("could not read configuration file '{}'", filepath.display()))?;
+
+        let config = Ini::load_from_str(content.as_str())
+            .map_err(|_| format!("failed to parse INI file '{}'", filepath.display()))?;
+
+        // Each section is the name of a preset
+        let presets = config
+            .iter()
+            .filter_map(|(name, props)| {
+                Some((name?.to_string(), props.get("command")?.to_string()))
+            })
+            .collect();
+        Ok((filepath, presets))
+    }
+
+    /// Print all the presets found in the configuration file
+    pub fn print_presets() -> Result<(), String> {
+        let (filepath, presets) = Self::read_presets()?;
+        println!("Presets in '{}':", filepath.display());
+        if presets.is_empty() {
+            println!("  (none)");
+        }
+        for (name, command) in &presets {
+            println!("  {}", name.bold());
+            println!("    {}", Self::split_preset_command(command).join(" "));
+        }
+        Ok(())
+    }
+
     /// Initialise the options from the command line arguments + configuration file (if one exists)
     pub fn initialise() -> (Self, String) {
         let mut args: Vec<String> = std::env::args().collect();
@@ -340,55 +390,13 @@ impl Options {
             (true, Some(preset_value)) => preset_value,
         };
 
-        #[cfg(windows)]
-        let home = "USERPROFILE";
-        #[cfg(not(windows))]
-        let home = "HOME";
-        let Ok(homedir) = std::env::var(home) else {
-            eprintln!(
-                "{}: could not locate environment variable {}",
-                "error".red().bold(),
-                home
-            );
+        let (filepath, presets) = Self::read_presets().unwrap_or_else(|e| {
+            eprintln!("{}: {}", "error".red().bold(), e);
             std::process::exit(1);
-        };
+        });
 
-        let mut filepath = std::path::PathBuf::from(homedir);
-        filepath.push(".sb.ini");
-        let Ok(content) = std::fs::read_to_string(&filepath) else {
-            eprintln!(
-                "{}: could not read configuration file '{}'",
-                "error".red().bold(),
-                filepath.display()
-            );
-            std::process::exit(1);
-        };
-
-        let Ok(config) = Ini::load_from_str(content.as_str()) else {
-            eprintln!(
-                "{}: failed to parse INI file '{}'",
-                "error".red().bold(),
-                filepath.display()
-            );
-            std::process::exit(1);
-        };
-
-        // Read the sections, each section is the name of the preset
-        for (name, props) in &config {
-            let Some(name) = name else {
-                continue;
-            };
-            if let Some(command) = props.get("command") {
-                PRESETS
-                    .write()
-                    .expect("preset lock error")
-                    .insert(name.to_string(), command.to_string());
-            }
-        }
-
-        // read the value
-        let presets = PRESETS.read().expect("preset lock error");
-        let Some(content) = presets.get(&preset_value) else {
+        // Find the requested preset
+        let Some((_, content)) = presets.iter().find(|(name, _)| *name == preset_value) else {
             eprintln!(
                 "{}: preset name '{}' could not be found in configuration file: '{}'",
                 "error".red().bold(),
@@ -404,7 +412,8 @@ impl Options {
         let content = content.trim();
 
         // Create the command line args: exe <file args> <cmd line args>
-        let mut preset_args: Vec<String> = content.split(' ').map(|s| s.to_string()).collect();
+        let mut preset_args: Vec<String> =
+            content.split_whitespace().map(|s| s.to_string()).collect();
         let exe = args.remove(0);
         preset_args.extend(args);
         preset_args.insert(0, exe);
@@ -412,5 +421,19 @@ impl Options {
         let cmdline = preset_args.join(" ");
         let options: Options = Self::parse_from(preset_args);
         (options, cmdline)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_split_preset_command_ignores_extra_whitespace() {
+        assert_eq!(
+            Options::split_preset_command("  -t get \t -h  1.2.3.4\n--limit-rps 5 "),
+            vec!["-t", "get", "-h", "1.2.3.4", "--limit-rps", "5"]
+        );
+        assert!(Options::split_preset_command("   ").is_empty());
     }
 }
